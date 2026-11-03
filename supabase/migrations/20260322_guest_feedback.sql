@@ -12,6 +12,8 @@ create table if not exists public.guest_feedback (
   room_cleanliness smallint not null check (room_cleanliness between 1 and 5),
   food_drink smallint not null check (food_drink between 1 and 5),
   spa_fitness smallint null check (spa_fitness is null or spa_fitness between 1 and 5),
+  staff_experience smallint not null check (staff_experience between 1 and 5),
+  comment text null check (comment is null or char_length(comment) <= 1000),
   recommend text not null check (recommend in ('yes', 'maybe', 'no')),
   created_at timestamptz not null default now()
 );

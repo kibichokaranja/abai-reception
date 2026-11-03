@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     let query = supabase
       .from("guest_feedback")
       .select(
-        "id, guest_name, phone, overall_stay, check_in, room_cleanliness, food_drink, spa_fitness, recommend, created_at",
+        "id, guest_name, phone, overall_stay, check_in, room_cleanliness, food_drink, spa_fitness, staff_experience, comment, recommend, created_at",
       )
       .order("created_at", { ascending: false })
       .limit(500);
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     }
     if (lowOnly) {
       query = query.or(
-        "overall_stay.lte.2,check_in.lte.2,room_cleanliness.lte.2,food_drink.lte.2,spa_fitness.lte.2",
+        "overall_stay.lte.2,check_in.lte.2,room_cleanliness.lte.2,food_drink.lte.2,spa_fitness.lte.2,staff_experience.lte.2",
       );
     }
 

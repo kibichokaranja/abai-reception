@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAnonClient } from "@/lib/supabase";
 import { describeAnonKeySource, getSupabaseUrl } from "@/lib/supabase-env";
-import type { GuestFeedbackInput, RecommendChoice } from "@/lib/types";
+import {
+  COMMENT_MAX_LENGTH,
+  type GuestFeedbackInput,
+  type RecommendChoice,
+} from "@/lib/types";
 
 function isRating(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 5;
@@ -21,6 +25,8 @@ export async function POST(request: Request) {
 
   const guest_name = typeof body.guest_name === "string" ? body.guest_name.trim() : "";
   const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+  const commentRaw = typeof body.comment === "string" ? body.comment.trim() : "";
+  const comment = commentRaw.length > 0 ? commentRaw : null;
 
   if (!guest_name || guest_name.length > 120) {
     return NextResponse.json({ error: "Name is required (max 120 chars)" }, { status: 400 });
@@ -32,13 +38,20 @@ export async function POST(request: Request) {
     !isRating(body.overall_stay) ||
     !isRating(body.check_in) ||
     !isRating(body.room_cleanliness) ||
-    !isRating(body.food_drink)
+    !isRating(body.food_drink) ||
+    !isRating(body.staff_experience)
   ) {
     return NextResponse.json({ error: "Ratings must be integers 1–5" }, { status: 400 });
   }
   if (body.spa_fitness !== null && body.spa_fitness !== undefined && !isRating(body.spa_fitness)) {
     return NextResponse.json(
       { error: "Spa/fitness must be 1–5 or null (N/A)" },
+      { status: 400 },
+    );
+  }
+  if (comment != null && comment.length > COMMENT_MAX_LENGTH) {
+    return NextResponse.json(
+      { error: `Comment must be ${COMMENT_MAX_LENGTH} characters or fewer` },
       { status: 400 },
     );
   }
@@ -56,6 +69,8 @@ export async function POST(request: Request) {
       room_cleanliness: body.room_cleanliness,
       food_drink: body.food_drink,
       spa_fitness: body.spa_fitness ?? null,
+      staff_experience: body.staff_experience,
+      comment,
       recommend: body.recommend,
     });
 
@@ -64,9 +79,14 @@ export async function POST(request: Request) {
       const detail = [error.message, error.code && `code=${error.code}`, error.hint]
         .filter(Boolean)
         .join(" · ");
+      const missingCol =
+        /staff_experience|comment/i.test(error.message ?? "") ||
+        error.code === "PGRST204"
+          ? " Run supabase/migrations/20260324_guest_feedback_staff_comment.sql in the Supabase SQL Editor, then try again."
+          : "";
       return NextResponse.json(
         {
-          error: `Could not save feedback: ${detail}`,
+          error: `Could not save feedback: ${detail}.${missingCol}`,
           debug: {
             urlHost: (() => {
               try {

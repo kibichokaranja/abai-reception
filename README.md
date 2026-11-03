@@ -76,16 +76,24 @@ If production shows Vercel’s plain `NOT_FOUND` page, Framework was likely **Ot
 - Use landscape or portrait tablet; form is large-tap friendly.
 - After submit, a thank-you screen auto-resets after ~5 seconds for the next guest.
 
-## Guest questions (v1)
+## Guest questions
 
 1. Overall stay (1–5)
 2. Check-in & reception (1–5)
 3. Room cleanliness (1–5)
 4. Food & drink (1–5)
 5. Spa / fitness (1–5 or N/A)
-6. Would you recommend us? (Yes / Maybe / No)
+6. Customer experience with staff (1–5)
+7. Would you recommend us? (Yes / Maybe / No)
+8. Optional free-text: “Anything else you’d like to share?” (max 1000 chars)
 
-No free-text comment in v1.
+### Schema updates (existing Supabase projects)
+
+After pull/deploy, run in the Supabase SQL Editor:
+
+[`supabase/migrations/20260324_guest_feedback_staff_comment.sql`](supabase/migrations/20260324_guest_feedback_staff_comment.sql)
+
+Then **Redeploy** the Vercel project.
 
 ## Scripts
 

@@ -100,7 +100,8 @@ export function StaffAnalyticsSummary({ analytics, loading, lowOnly }: Props) {
                   }`}
                 >
                   {formatAvg(cat.average)}
-                  {cat.key === "spa_fitness" && cat.count === 0 ? (
+                  {(cat.key === "spa_fitness" || cat.key === "staff_experience") &&
+                  cat.count === 0 ? (
                     <span className="ml-1 text-sm font-sans font-normal text-abai-muted">
                       N/A
                     </span>

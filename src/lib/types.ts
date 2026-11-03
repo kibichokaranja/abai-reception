@@ -8,12 +8,16 @@ export type GuestFeedbackInput = {
   room_cleanliness: number;
   food_drink: number;
   spa_fitness: number | null;
+  staff_experience: number;
+  comment: string | null;
   recommend: RecommendChoice;
 };
 
-export type GuestFeedbackRow = GuestFeedbackInput & {
+/** DB row — staff_experience nullable for rows before the staff/comment migration. */
+export type GuestFeedbackRow = Omit<GuestFeedbackInput, "staff_experience"> & {
   id: string;
   created_at: string;
+  staff_experience: number | null;
 };
 
 export const RATING_LABELS = [
@@ -29,3 +33,5 @@ export const RECOMMEND_OPTIONS: { value: RecommendChoice; label: string }[] = [
   { value: "maybe", label: "Maybe" },
   { value: "no", label: "No" },
 ];
+
+export const COMMENT_MAX_LENGTH = 1000;

@@ -24,6 +24,30 @@ function scoreTone(value: number | null) {
   return "text-emerald-800";
 }
 
+function CommentCell({ comment }: { comment: string | null }) {
+  const [open, setOpen] = useState(false);
+  if (!comment) {
+    return <span className="text-abai-muted">—</span>;
+  }
+  const long = comment.length > 80;
+  return (
+    <div className="max-w-[14rem]">
+      <p className={`text-abai-ink ${open ? "whitespace-pre-wrap" : "line-clamp-2"}`}>
+        {comment}
+      </p>
+      {long ? (
+        <button
+          type="button"
+          className="mt-1 text-xs font-medium text-abai-navy underline-offset-2 hover:underline"
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? "Show less" : "Show more"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function StaffFeedbackList() {
   const router = useRouter();
   const [rows, setRows] = useState<GuestFeedbackRow[]>([]);
@@ -94,7 +118,7 @@ export function StaffFeedbackList() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+    <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold text-abai-navy sm:text-4xl">
@@ -174,19 +198,21 @@ export function StaffFeedbackList() {
               <th className="px-3 py-3 font-medium">Room</th>
               <th className="px-3 py-3 font-medium">F&amp;B</th>
               <th className="px-3 py-3 font-medium">Spa</th>
+              <th className="px-3 py-3 font-medium">Staff</th>
               <th className="px-3 py-3 font-medium">Recommend</th>
+              <th className="px-3 py-3 font-medium">Comment</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && !loading ? (
               <tr>
-                <td colSpan={9} className="px-3 py-8 text-center text-abai-muted">
+                <td colSpan={11} className="px-3 py-8 text-center text-abai-muted">
                   No feedback matches these filters.
                 </td>
               </tr>
             ) : null}
             {rows.map((row) => (
-              <tr key={row.id} className="border-t border-abai-navy/10">
+              <tr key={row.id} className="border-t border-abai-navy/10 align-top">
                 <td className="whitespace-nowrap px-3 py-3 text-abai-muted">
                   {formatDate(row.created_at)}
                 </td>
@@ -209,7 +235,13 @@ export function StaffFeedbackList() {
                 <td className={`px-3 py-3 ${scoreTone(row.spa_fitness)}`}>
                   {row.spa_fitness ?? "N/A"}
                 </td>
+                <td className={`px-3 py-3 ${scoreTone(row.staff_experience)}`}>
+                  {row.staff_experience ?? "—"}
+                </td>
                 <td className="px-3 py-3 capitalize">{row.recommend}</td>
+                <td className="px-3 py-3">
+                  <CommentCell comment={row.comment} />
+                </td>
               </tr>
             ))}
           </tbody>

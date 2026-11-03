@@ -5,7 +5,8 @@ export type CategoryKey =
   | "check_in"
   | "room_cleanliness"
   | "food_drink"
-  | "spa_fitness";
+  | "spa_fitness"
+  | "staff_experience";
 
 export type CategoryAverage = {
   key: CategoryKey;
@@ -23,6 +24,7 @@ export type StaffAnalytics = {
     room_cleanliness: number | null;
     food_drink: number | null;
     spa_fitness: number | null;
+    staff_experience: number | null;
   };
   categories: CategoryAverage[];
   recommend: {
@@ -42,6 +44,7 @@ const CATEGORIES: { key: CategoryKey; label: string; excludeNull: boolean }[] = 
   { key: "room_cleanliness", label: "Room", excludeNull: false },
   { key: "food_drink", label: "Food & drink", excludeNull: false },
   { key: "spa_fitness", label: "Spa / fitness", excludeNull: true },
+  { key: "staff_experience", label: "Staff experience", excludeNull: true },
 ];
 
 const WEAK_AVG_MAX = 3;
@@ -104,6 +107,8 @@ export function computeStaffAnalytics(rows: GuestFeedbackRow[]): StaffAnalytics 
       categories.find((c) => c.key === "room_cleanliness")?.average ?? null,
     food_drink: categories.find((c) => c.key === "food_drink")?.average ?? null,
     spa_fitness: categories.find((c) => c.key === "spa_fitness")?.average ?? null,
+    staff_experience:
+      categories.find((c) => c.key === "staff_experience")?.average ?? null,
   };
 
   return {

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { TapChoices } from "@/components/TapChoices";
 import {
+  COMMENT_MAX_LENGTH,
   RATING_LABELS,
   RECOMMEND_OPTIONS,
   RecommendChoice,
@@ -18,6 +19,8 @@ type FormState = {
   room_cleanliness: number | null;
   food_drink: number | null;
   spa_fitness: number | "na" | null;
+  staff_experience: number | null;
+  comment: string;
   recommend: RecommendChoice | null;
 };
 
@@ -29,6 +32,8 @@ const emptyForm: FormState = {
   room_cleanliness: null,
   food_drink: null,
   spa_fitness: null,
+  staff_experience: null,
+  comment: "",
   recommend: null,
 };
 
@@ -71,9 +76,16 @@ export function GuestFeedbackForm() {
       form.room_cleanliness == null ||
       form.food_drink == null ||
       form.spa_fitness == null ||
+      form.staff_experience == null ||
       form.recommend == null
     ) {
-      setError("Please answer every question with a tap.");
+      setError("Please answer every rating with a tap (the review text is optional).");
+      return;
+    }
+
+    const comment = form.comment.trim();
+    if (comment.length > COMMENT_MAX_LENGTH) {
+      setError(`Review text must be ${COMMENT_MAX_LENGTH} characters or fewer.`);
       return;
     }
 
@@ -90,6 +102,8 @@ export function GuestFeedbackForm() {
           room_cleanliness: form.room_cleanliness,
           food_drink: form.food_drink,
           spa_fitness: form.spa_fitness === "na" ? null : form.spa_fitness,
+          staff_experience: form.staff_experience,
+          comment: comment.length > 0 ? comment : null,
           recommend: form.recommend,
         }),
       });
@@ -135,8 +149,8 @@ export function GuestFeedbackForm() {
           How was your stay?
         </h1>
         <p className="mt-2 text-base text-abai-muted sm:text-lg">
-          A quick tap-through for our front desk — name and phone, then ratings
-          only.
+          A quick tap-through for our front desk — ratings required; a short
+          written review is optional.
         </p>
       </div>
 
@@ -205,12 +219,37 @@ export function GuestFeedbackForm() {
         columns={6}
       />
       <TapChoices
+        label="Customer experience with staff"
+        options={RATING_LABELS}
+        value={form.staff_experience}
+        onChange={(v) => update("staff_experience", v)}
+      />
+      <TapChoices
         label="Would you recommend us?"
         options={RECOMMEND_OPTIONS}
         value={form.recommend}
         onChange={(v) => update("recommend", v)}
         columns={3}
       />
+
+      <label className="animate-fade-up block space-y-2">
+        <span className="font-display text-xl font-semibold text-abai-ink sm:text-2xl">
+          Anything else you’d like to share?
+        </span>
+        <span className="block text-sm text-abai-muted">Optional</span>
+        <textarea
+          name="comment"
+          rows={4}
+          maxLength={COMMENT_MAX_LENGTH}
+          value={form.comment}
+          onChange={(e) => update("comment", e.target.value)}
+          className="w-full rounded-lg border-2 border-abai-navy/15 bg-white px-4 py-3 text-base text-abai-ink outline-none focus:border-abai-gold"
+          placeholder="Tell us more about your stay (optional)"
+        />
+        <span className="block text-right text-xs text-abai-muted">
+          {form.comment.length}/{COMMENT_MAX_LENGTH}
+        </span>
+      </label>
 
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800" role="alert">
