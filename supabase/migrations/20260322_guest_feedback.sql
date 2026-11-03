@@ -38,6 +38,8 @@ create policy "authenticated_select_guest_feedback"
   to authenticated
   using (true);
 
-grant usage on schema public to anon, authenticated;
+grant usage on schema public to anon, authenticated, service_role;
 grant insert on table public.guest_feedback to anon;
 grant select on table public.guest_feedback to authenticated;
+-- Staff UI uses the service_role / secret key (bypasses RLS) but still needs table grants.
+grant select, insert, update, delete on table public.guest_feedback to service_role;

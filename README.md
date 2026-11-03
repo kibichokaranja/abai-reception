@@ -41,11 +41,13 @@ Open [http://localhost:3000](http://localhost:3000) for the guest form and [http
 
 | Variable | Where | Purpose |
 |----------|--------|---------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Client + server | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client + server | Public anon key for inserts |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server only | Staff reads (never expose to browser) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Client + server | Supabase project URL (`https://….supabase.co`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client + server | Guest inserts — legacy `anon` JWT **or** set `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (`sb_publishable_…`) instead |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only | Staff reads — legacy `service_role` JWT **or** set `SUPABASE_SECRET_KEY` (`sb_secret_…`) instead. Never put anon/publishable here |
 | `STAFF_PASSWORD` | Server only | Shared front-desk password for `/staff` |
 | `STAFF_SESSION_SECRET` | Server only | Signs staff session cookie (≥16 chars) |
+
+If `/staff` shows a Supabase load error after guests can submit: confirm `SUPABASE_SERVICE_ROLE_KEY` is the **service_role / secret** key (not anon), then run [`supabase/migrations/20260323_guest_feedback_service_role_grants.sql`](supabase/migrations/20260323_guest_feedback_service_role_grants.sql) in the SQL Editor, then **Redeploy**. The staff error banner now includes a safe Supabase detail + which env name was found.
 
 ## Vercel deploy
 

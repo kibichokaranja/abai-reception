@@ -1,6 +1,22 @@
 import { NextResponse } from "next/server";
 import { isStaffAuthenticated } from "@/lib/staff-auth";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
+import { describeServiceKeySource, getSupabaseUrl } from "@/lib/supabase-env";
+
+function safeSupabaseError(error: {
+  message?: string;
+  code?: string;
+  details?: string | null;
+  hint?: string | null;
+}): string {
+  const parts = [
+    error.message,
+    error.code ? `code=${error.code}` : null,
+    error.hint ? `hint=${error.hint}` : null,
+    error.details ? `details=${error.details}` : null,
+  ].filter(Boolean);
+  return parts.join(" · ") || "Unknown Supabase error";
+}
 
 export async function GET(request: Request) {
   if (!(await isStaffAuthenticated())) {
@@ -37,8 +53,31 @@ export async function GET(request: Request) {
     const { data, error } = await query;
     if (error) {
       console.error("staff feedback select failed", error);
+      const detail = safeSupabaseError(error);
+      const grantHint =
+        error.code === "42501" ||
+        /permission denied|row-level security/i.test(error.message ?? "")
+          ? " Run supabase/migrations/20260323_guest_feedback_service_role_grants.sql (GRANT to service_role)."
+          : "";
+      const missingTableHint =
+        error.code === "42P01" || /does not exist/i.test(error.message ?? "")
+          ? " Run supabase/migrations/20260322_guest_feedback.sql in the Supabase SQL Editor."
+          : "";
       return NextResponse.json(
-        { error: "Could not load feedback from Supabase." },
+        {
+          error: `Could not load feedback from Supabase: ${detail}.${grantHint}${missingTableHint}`,
+          debug: {
+            urlHost: (() => {
+              try {
+                return new URL(getSupabaseUrl() ?? "").host;
+              } catch {
+                return null;
+              }
+            })(),
+            serviceKeyEnv: describeServiceKeySource(),
+            supabaseCode: error.code ?? null,
+          },
+        },
         { status: 500 },
       );
     }
@@ -46,10 +85,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ feedback: data ?? [] });
   } catch (err) {
     console.error(err);
+    const message = err instanceof Error ? err.message : "Unknown server error";
     return NextResponse.json(
       {
-        error:
-          "Server is missing SUPABASE_SERVICE_ROLE_KEY (or NEXT_PUBLIC_SUPABASE_URL).",
+        error: message,
+        debug: {
+          urlHost: (() => {
+            try {
+              return new URL(getSupabaseUrl() ?? "").host;
+            } catch {
+              return null;
+            }
+          })(),
+          serviceKeyEnv: describeServiceKeySource(),
+        },
       },
       { status: 500 },
     );

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { getSupabaseAnonClient } from "@/lib/supabase";
+import { describeAnonKeySource, getSupabaseUrl } from "@/lib/supabase-env";
 import type { GuestFeedbackInput, RecommendChoice } from "@/lib/types";
 
 function isRating(value: unknown): value is number {
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabase = getSupabaseBrowserClient();
+    const supabase = getSupabaseAnonClient();
     const { error } = await supabase.from("guest_feedback").insert({
       guest_name,
       phone,
@@ -60,8 +61,23 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error("guest_feedback insert failed", error);
+      const detail = [error.message, error.code && `code=${error.code}`, error.hint]
+        .filter(Boolean)
+        .join(" · ");
       return NextResponse.json(
-        { error: "Could not save feedback. Check Supabase setup." },
+        {
+          error: `Could not save feedback: ${detail}`,
+          debug: {
+            urlHost: (() => {
+              try {
+                return new URL(getSupabaseUrl() ?? "").host;
+              } catch {
+                return null;
+              }
+            })(),
+            anonKeyEnv: describeAnonKeySource(),
+          },
+        },
         { status: 500 },
       );
     }
@@ -69,10 +85,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error(err);
+    const message = err instanceof Error ? err.message : "Unknown server error";
     return NextResponse.json(
       {
-        error:
-          "Server is missing Supabase env vars. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+        error: message,
+        debug: {
+          urlHost: (() => {
+            try {
+              return new URL(getSupabaseUrl() ?? "").host;
+            } catch {
+              return null;
+            }
+          })(),
+          anonKeyEnv: describeAnonKeySource(),
+        },
       },
       { status: 500 },
     );

@@ -43,9 +43,21 @@ export function StaffFeedbackList() {
       const data = (await res.json()) as {
         feedback?: GuestFeedbackRow[];
         error?: string;
+        debug?: { urlHost?: string | null; serviceKeyEnv?: string; supabaseCode?: string | null };
       };
       if (!res.ok) {
-        throw new Error(data.error || "Failed to load feedback");
+        const debugBits = data.debug
+          ? [
+              data.debug.serviceKeyEnv && `env=${data.debug.serviceKeyEnv}`,
+              data.debug.urlHost && `host=${data.debug.urlHost}`,
+              data.debug.supabaseCode && `code=${data.debug.supabaseCode}`,
+            ]
+              .filter(Boolean)
+              .join(", ")
+          : "";
+        throw new Error(
+          [data.error || "Failed to load feedback", debugBits].filter(Boolean).join(" "),
+        );
       }
       setRows(data.feedback ?? []);
     } catch (err) {
