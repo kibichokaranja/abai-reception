@@ -49,10 +49,24 @@ Open [http://localhost:3000](http://localhost:3000) for the guest form and [http
 
 ## Vercel deploy
 
-1. Import this GitHub repo in Vercel (Framework: Next.js).
+Repo includes `vercel.json` with `"framework": "nextjs"` so Vercel does not treat this as static “Other”.
+
+**Project settings (required):**
+
+| Setting | Value |
+|---------|--------|
+| Framework Preset | **Next.js** (not Other) |
+| Root Directory | `./` (repo root) |
+| Build Command | `next build` (default) |
+| Output Directory | **leave default / empty** — do not set `public`, `.`, or `.next` |
+| Install Command | `npm install` (default) |
+
+1. Import this GitHub repo in Vercel with the settings above.
 2. Paste the env vars above into Project → Settings → Environment Variables.
-3. Deploy. Production URL becomes the kiosk / QR target (root `/`).
+3. Deploy (or **Redeploy** after changing Framework/Output). Production URL is the kiosk / QR target (`/`).
 4. Staff bookmark: `https://YOUR_DOMAIN/staff`.
+
+If production shows Vercel’s plain `NOT_FOUND` page, Framework was likely **Other** or Output Directory was overridden — fix settings, then Redeploy.
 
 ### QR / tablet kiosk
 
