@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { StaffAnalyticsSummary } from "@/components/StaffAnalyticsSummary";
+import type { StaffAnalytics } from "@/lib/staff-analytics";
 import type { GuestFeedbackRow } from "@/lib/types";
 
 function formatDate(iso: string) {
@@ -25,6 +27,7 @@ function scoreTone(value: number | null) {
 export function StaffFeedbackList() {
   const router = useRouter();
   const [rows, setRows] = useState<GuestFeedbackRow[]>([]);
+  const [analytics, setAnalytics] = useState<StaffAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState("");
@@ -42,8 +45,13 @@ export function StaffFeedbackList() {
       const res = await fetch(`/api/staff/feedback?${params.toString()}`);
       const data = (await res.json()) as {
         feedback?: GuestFeedbackRow[];
+        analytics?: StaffAnalytics;
         error?: string;
-        debug?: { urlHost?: string | null; serviceKeyEnv?: string; supabaseCode?: string | null };
+        debug?: {
+          urlHost?: string | null;
+          serviceKeyEnv?: string;
+          supabaseCode?: string | null;
+        };
       };
       if (!res.ok) {
         const debugBits = data.debug
@@ -56,12 +64,16 @@ export function StaffFeedbackList() {
               .join(", ")
           : "";
         throw new Error(
-          [data.error || "Failed to load feedback", debugBits].filter(Boolean).join(" "),
+          [data.error || "Failed to load feedback", debugBits]
+            .filter(Boolean)
+            .join(" "),
         );
       }
       setRows(data.feedback ?? []);
+      setAnalytics(data.analytics ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
+      setAnalytics(null);
     } finally {
       setLoading(false);
     }
@@ -140,6 +152,14 @@ export function StaffFeedbackList() {
         <p className="rounded-lg bg-red-50 px-4 py-3 text-red-800" role="alert">
           {error}
         </p>
+      ) : null}
+
+      {!error ? (
+        <StaffAnalyticsSummary
+          analytics={analytics}
+          loading={loading}
+          lowOnly={lowOnly}
+        />
       ) : null}
 
       <div className="overflow-x-auto rounded-xl border border-abai-navy/10 bg-white">

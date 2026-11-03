@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { computeStaffAnalytics } from "@/lib/staff-analytics";
 import { isStaffAuthenticated } from "@/lib/staff-auth";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { describeServiceKeySource, getSupabaseUrl } from "@/lib/supabase-env";
+import type { GuestFeedbackRow } from "@/lib/types";
 
 function safeSupabaseError(error: {
   message?: string;
@@ -82,7 +84,11 @@ export async function GET(request: Request) {
       );
     }
 
-    return NextResponse.json({ feedback: data ?? [] });
+    const feedback = (data ?? []) as GuestFeedbackRow[];
+    return NextResponse.json({
+      feedback,
+      analytics: computeStaffAnalytics(feedback),
+    });
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : "Unknown server error";

@@ -3,7 +3,7 @@
 Front-desk / QR guest feedback for **Abai Lodges & Spa** (“Exclusivity Redefined”).
 
 - Guest kiosk form at `/` — name + phone, then tap-only ratings
-- Staff browse page at `/staff` — shared password gate, date / low-score filters
+- Staff browse page at `/staff` — shared password gate, date / low-score filters, **at-a-glance analytics** (averages, recommend %, weak areas ≤3)
 - Supabase Postgres + RLS; Vercel-ready Next.js App Router + Tailwind
 
 ## Stack
