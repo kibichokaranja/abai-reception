@@ -1,26 +1,96 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --abai-navy: #161141;
+  --abai-navy-deep: #0f0c2e;
+  --abai-gold: #d1a745;
+  --abai-gold-hover: #e0b85a;
+  --abai-gold-pressed: #b8922f;
+  --abai-cream: #f7f4ec;
+  --abai-ink: #1a1730;
+  --abai-muted: #5c5870;
+  --background: var(--abai-cream);
+  --foreground: var(--abai-ink);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-abai-navy: var(--abai-navy);
+  --color-abai-navy-deep: var(--abai-navy-deep);
+  --color-abai-gold: var(--abai-gold);
+  --color-abai-gold-hover: var(--abai-gold-hover);
+  --color-abai-gold-pressed: var(--abai-gold-pressed);
+  --color-abai-cream: var(--abai-cream);
+  --color-abai-ink: var(--abai-ink);
+  --color-abai-muted: var(--abai-muted);
+  --font-sans: var(--font-outfit);
+  --font-display: var(--font-cormorant);
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(209, 167, 69, 0.12), transparent 55%),
+    linear-gradient(180deg, #f7f4ec 0%, #efe9dc 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100dvh;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(209, 167, 69, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(209, 167, 69, 0);
+  }
+}
+
+@keyframes check-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.45s ease-out both;
+}
+
+.animate-soft-pulse {
+  animation: soft-pulse 2s ease-in-out infinite;
+}
+
+.animate-check-pop {
+  animation: check-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.tap-choice {
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
+}
+
+.tap-choice:active {
+  transform: scale(0.97);
 }
