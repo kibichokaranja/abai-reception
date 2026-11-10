@@ -2,8 +2,9 @@
 
 Front-desk / QR guest feedback for **Abai Lodges & Spa** (“Exclusivity Redefined”).
 
-- Guest kiosk form at `/` — name + phone, then tap-only ratings
-- Staff browse page at `/staff` — shared password gate, date / low-score filters, **at-a-glance analytics** (averages, recommend %, weak areas ≤3)
+- Guest kiosk form at `/` — name + phone, then **survey v2** (17 questions)
+- Staff browse page at `/staff` — password gate, filters, **At a glance** analytics, expandable score detail
+- Footer brand QR: “Scan to open on your phone”
 - Supabase Postgres + RLS; Vercel-ready Next.js App Router + Tailwind
 
 ## Stack
@@ -26,8 +27,17 @@ Open [http://localhost:3000](http://localhost:3000) for the guest form and [http
 ## Supabase
 
 1. Create a project (pick a region close to Kenya / your guests).
-2. SQL Editor → run [`supabase/migrations/20260322_guest_feedback.sql`](supabase/migrations/20260322_guest_feedback.sql).
-3. Project Settings → API → copy **Project URL**, **anon public** key, and **service_role** key.
+2. SQL Editor → run migrations in order (see below).
+3. Project Settings → API → copy **Project URL**, **anon public** (or publishable) key, and **service_role** (or secret) key.
+
+### Migrations (run in order on existing projects)
+
+| File | Purpose |
+|------|---------|
+| [`20260322_guest_feedback.sql`](supabase/migrations/20260322_guest_feedback.sql) | Create table + RLS (fresh installs) |
+| [`20260323_guest_feedback_service_role_grants.sql`](supabase/migrations/20260323_guest_feedback_service_role_grants.sql) | `GRANT` for staff service role |
+| [`20260324_guest_feedback_staff_comment.sql`](supabase/migrations/20260324_guest_feedback_staff_comment.sql) | Legacy staff_experience + comment |
+| [`20260325_guest_feedback_survey_v2.sql`](supabase/migrations/20260325_guest_feedback_survey_v2.sql) | **Survey v2 columns** (required for current form) |
 
 ### RLS summary
 
@@ -47,53 +57,63 @@ Open [http://localhost:3000](http://localhost:3000) for the guest form and [http
 | `STAFF_PASSWORD` | Server only | Shared front-desk password for `/staff` |
 | `STAFF_SESSION_SECRET` | Server only | Signs staff session cookie (≥16 chars) |
 
-If `/staff` shows a Supabase load error after guests can submit: confirm `SUPABASE_SERVICE_ROLE_KEY` is the **service_role / secret** key (not anon), then run [`supabase/migrations/20260323_guest_feedback_service_role_grants.sql`](supabase/migrations/20260323_guest_feedback_service_role_grants.sql) in the SQL Editor, then **Redeploy**. The staff error banner now includes a safe Supabase detail + which env name was found.
+If `/staff` shows a Supabase load error after guests can submit: confirm `SUPABASE_SERVICE_ROLE_KEY` is the **service_role / secret** key (not anon), run the grants migration, then **Redeploy**.
 
 ## Vercel deploy
 
-Repo includes `vercel.json` with `"framework": "nextjs"` so Vercel does not treat this as static “Other”.
-
-**Project settings (required):**
+Repo includes `vercel.json` with `"framework": "nextjs"`.
 
 | Setting | Value |
 |---------|--------|
 | Framework Preset | **Next.js** (not Other) |
-| Root Directory | `./` (repo root) |
-| Build Command | `next build` (default) |
-| Output Directory | **leave default / empty** — do not set `public`, `.`, or `.next` |
-| Install Command | `npm install` (default) |
+| Root Directory | `./` |
+| Build Command | `next build` |
+| Output Directory | **leave default / empty** |
 
-1. Import this GitHub repo in Vercel with the settings above.
-2. Paste the env vars above into Project → Settings → Environment Variables.
-3. Deploy (or **Redeploy** after changing Framework/Output). Production URL is the kiosk / QR target (`/`).
-4. Staff bookmark: `https://YOUR_DOMAIN/staff`.
-
-If production shows Vercel’s plain `NOT_FOUND` page, Framework was likely **Other** or Output Directory was overridden — fix settings, then Redeploy.
+1. Import `kibichokaranja/abai-reception`.
+2. Paste env vars for Production.
+3. Run survey v2 SQL if not already applied → **Redeploy**.
+4. Guest: `/` · Staff: `/staff`.
 
 ### QR / tablet kiosk
 
-- Point the QR code and tablet home screen to the production `/` URL.
-- Use landscape or portrait tablet; form is large-tap friendly.
-- After submit, a thank-you screen auto-resets after ~5 seconds for the next guest.
+- Production `/` is the kiosk / printed QR target (footer also shows the brand QR asset).
+- After submit, thank-you auto-resets after ~5 seconds.
 
-## Guest questions
+## Guest questions (survey v2)
 
-1. Overall stay (1–5)
-2. Check-in & reception (1–5)
-3. Room cleanliness (1–5)
-4. Food & drink (1–5)
-5. Spa / fitness (1–5 or N/A)
-6. Customer experience with staff (1–5)
-7. Would you recommend us? (Yes / Maybe / No)
-8. Optional free-text: “Anything else you’d like to share?” (max 1000 chars)
+Identity: **Name**, **Phone** (required).
 
-### Schema updates (existing Supabase projects)
+| # | Question | Control |
+|---|----------|---------|
+| 1 | Reservation ease/convenience | 1–5 + N/A |
+| 2 | Welcome / check-in | 1–5 + N/A |
+| 3 | Accommodation comfort/quality | 1–5 + N/A |
+| 4 | Conference facilities | 1–5 + N/A |
+| 5 | Wi‑Fi speed/reliability/quality | 1–5 |
+| 6 | Recreational / leisure | 1–5 + N/A |
+| 7 | Spa experience | 1–5 + N/A |
+| 8 | Cleanliness / upkeep | 1–5 |
+| 9 | Food taste/quality | 1–5 |
+| 10 | Service promptness/efficiency | 1–5 |
+| 11 | Staff friendliness/courtesy/helpfulness | 1–5 |
+| 12 | Standout team member name | Optional text |
+| 13 | Safety / security | 1–5 |
+| 14 | Overall experience | 1–5 |
+| 15 | Value for money | Yes / No / Maybe |
+| 16 | Likelihood to recommend | 1–5 |
+| 17 | Other comments / suggestions | Optional text (max 1000) |
 
-After pull/deploy, run in the Supabase SQL Editor:
+Legacy columns remain in the DB for older rows; staff UI still reads them.
 
-[`supabase/migrations/20260324_guest_feedback_staff_comment.sql`](supabase/migrations/20260324_guest_feedback_staff_comment.sql)
+## Smoke-test (after SQL + Redeploy)
 
-Then **Redeploy** the Vercel project.
+1. Open production `/` — 17 questions + footer QR visible.
+2. Submit with N/A on at least one optional rating, fill standout name + comment, complete required taps.
+3. Confirm thank-you, then auto-reset.
+4. Open `/staff`, sign in, confirm the new row (Overall / Recommend / Value / Standout / Comment).
+5. Expand **Scores**; confirm At a glance averages and value-for-money mix update.
+6. Legacy rows (if any) still list with a legacy marker.
 
 ## Scripts
 
