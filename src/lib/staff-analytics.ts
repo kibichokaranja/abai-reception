@@ -85,7 +85,9 @@ export function computeStaffAnalytics(rows: GuestFeedbackRow[]): StaffAnalytics 
     no: 0,
   };
   for (const row of rows) {
-    recommendCounts[row.recommend] += 1;
+    if (row.recommend === "yes" || row.recommend === "maybe" || row.recommend === "no") {
+      recommendCounts[row.recommend] += 1;
+    }
   }
 
   const total = rows.length;

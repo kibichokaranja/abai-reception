@@ -3,7 +3,7 @@ import { computeStaffAnalytics } from "@/lib/staff-analytics";
 import { isStaffAuthenticated } from "@/lib/staff-auth";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { describeServiceKeySource, getSupabaseUrl } from "@/lib/supabase-env";
-import type { GuestFeedbackRow } from "@/lib/types";
+import { SURVEY_V2_SELECT_COLUMNS, type GuestFeedbackRow } from "@/lib/types";
 
 function safeSupabaseError(error: {
   message?: string;
@@ -34,9 +34,7 @@ export async function GET(request: Request) {
     const supabase = getSupabaseAdminClient();
     let query = supabase
       .from("guest_feedback")
-      .select(
-        "id, guest_name, phone, overall_stay, check_in, room_cleanliness, food_drink, spa_fitness, staff_experience, comment, recommend, created_at",
-      )
+      .select(SURVEY_V2_SELECT_COLUMNS)
       .order("created_at", { ascending: false })
       .limit(500);
 
@@ -48,7 +46,28 @@ export async function GET(request: Request) {
     }
     if (lowOnly) {
       query = query.or(
-        "overall_stay.lte.2,check_in.lte.2,room_cleanliness.lte.2,food_drink.lte.2,spa_fitness.lte.2,staff_experience.lte.2",
+        [
+          "overall_stay.lte.2",
+          "check_in.lte.2",
+          "room_cleanliness.lte.2",
+          "food_drink.lte.2",
+          "spa_fitness.lte.2",
+          "staff_experience.lte.2",
+          "wifi_quality.lte.2",
+          "cleanliness_upkeep.lte.2",
+          "food_taste_quality.lte.2",
+          "service_promptness.lte.2",
+          "staff_friendliness.lte.2",
+          "safety_security.lte.2",
+          "overall_experience.lte.2",
+          "recommend_score.lte.2",
+          "reservation_ease.lte.2",
+          "welcome_check_in.lte.2",
+          "accommodation_comfort.lte.2",
+          "conference_facilities.lte.2",
+          "recreational_leisure.lte.2",
+          "spa_experience.lte.2",
+        ].join(","),
       );
     }
 
@@ -84,7 +103,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const feedback = (data ?? []) as GuestFeedbackRow[];
+    const feedback = (data ?? []) as unknown as GuestFeedbackRow[];
     return NextResponse.json({
       feedback,
       analytics: computeStaffAnalytics(feedback),
