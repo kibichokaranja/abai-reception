@@ -33,7 +33,22 @@ export function StaffAnalyticsSummary({ analytics, loading, lowOnly }: Props) {
     );
   }
 
-  const { total, averages, recommend, categories, weakAreas } = analytics;
+  const {
+    total,
+    v2Count,
+    legacyCount,
+    overallAvg,
+    recommendScoreAvg,
+    valueForMoney,
+    legacyRecommend,
+    categories,
+    weakAreas,
+  } = analytics;
+
+  const categoryGrid =
+    categories.length > 8
+      ? "sm:grid-cols-2 lg:grid-cols-4"
+      : "sm:grid-cols-2 lg:grid-cols-5";
 
   return (
     <section aria-label="Analytics" className="space-y-3">
@@ -41,14 +56,13 @@ export function StaffAnalyticsSummary({ analytics, loading, lowOnly }: Props) {
         <h2 className="font-display text-2xl font-semibold text-abai-navy">
           At a glance
         </h2>
-        {lowOnly ? (
-          <p className="text-xs text-abai-muted">
-            Summary uses the low-score filter (≤2) currently on
-          </p>
-        ) : null}
+        <p className="text-xs text-abai-muted">
+          {v2Count} survey v2 · {legacyCount} legacy
+          {lowOnly ? " · low-score filter on" : ""}
+        </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-abai-navy/10 bg-white px-4 py-4">
           <p className="text-xs font-medium uppercase tracking-wide text-abai-muted">
             Responses
@@ -62,7 +76,18 @@ export function StaffAnalyticsSummary({ analytics, loading, lowOnly }: Props) {
             Avg overall
           </p>
           <p className="mt-1 font-display text-3xl font-semibold text-abai-navy">
-            {formatAvg(averages.overall_stay)}
+            {formatAvg(overallAvg)}
+            <span className="ml-1 text-base font-sans font-normal text-abai-muted">
+              / 5
+            </span>
+          </p>
+        </div>
+        <div className="rounded-xl border border-abai-navy/10 bg-white px-4 py-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-abai-muted">
+            Avg recommend
+          </p>
+          <p className="mt-1 font-display text-3xl font-semibold text-abai-navy">
+            {formatAvg(recommendScoreAvg)}
             <span className="ml-1 text-base font-sans font-normal text-abai-muted">
               / 5
             </span>
@@ -70,27 +95,52 @@ export function StaffAnalyticsSummary({ analytics, loading, lowOnly }: Props) {
         </div>
         <div className="rounded-xl border border-abai-gold/40 bg-abai-navy px-4 py-4 text-white">
           <p className="text-xs font-medium uppercase tracking-wide text-abai-gold">
-            Would recommend
+            Value for money
           </p>
-          <p className="mt-1 font-display text-3xl font-semibold">
-            {recommend.yesPct}%
-            <span className="ml-1 text-base font-sans font-normal text-white/70">
-              yes
-            </span>
-          </p>
-          <p className="mt-1 text-xs text-white/75">
-            Yes {recommend.yes} · Maybe {recommend.maybe} · No {recommend.no}
-          </p>
+          {valueForMoney.total > 0 ? (
+            <>
+              <p className="mt-1 font-display text-3xl font-semibold">
+                {valueForMoney.yesPct}%
+                <span className="ml-1 text-base font-sans font-normal text-white/70">
+                  yes
+                </span>
+              </p>
+              <p className="mt-1 text-xs text-white/75">
+                Yes {valueForMoney.yes} · No {valueForMoney.no} · Maybe{" "}
+                {valueForMoney.maybe}
+              </p>
+            </>
+          ) : legacyRecommend.total > 0 ? (
+            <>
+              <p className="mt-1 font-display text-3xl font-semibold">
+                {legacyRecommend.yesPct}%
+                <span className="ml-1 text-base font-sans font-normal text-white/70">
+                  yes*
+                </span>
+              </p>
+              <p className="mt-1 text-xs text-white/75">
+                Legacy recommend · Yes {legacyRecommend.yes} · Maybe{" "}
+                {legacyRecommend.maybe} · No {legacyRecommend.no}
+              </p>
+            </>
+          ) : (
+            <p className="mt-1 font-display text-3xl font-semibold text-white/80">
+              —
+            </p>
+          )}
         </div>
       </div>
 
       <div className="rounded-xl border border-abai-navy/10 bg-white px-4 py-4">
         <p className="text-xs font-medium uppercase tracking-wide text-abai-muted">
           Category averages
+          <span className="ml-1 font-normal normal-case tracking-normal">
+            (N/A scores excluded)
+          </span>
         </p>
-        <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <ul className={`mt-3 grid gap-3 ${categoryGrid}`}>
           {categories
-            .filter((c) => c.key !== "overall_stay")
+            .filter((c) => c.key !== "overall_experience" && c.key !== "overall_stay")
             .map((cat) => (
               <li key={cat.key} className="min-w-0">
                 <p className="truncate text-sm text-abai-muted">{cat.label}</p>
@@ -100,8 +150,7 @@ export function StaffAnalyticsSummary({ analytics, loading, lowOnly }: Props) {
                   }`}
                 >
                   {formatAvg(cat.average)}
-                  {(cat.key === "spa_fitness" || cat.key === "staff_experience") &&
-                  cat.count === 0 ? (
+                  {cat.count === 0 ? (
                     <span className="ml-1 text-sm font-sans font-normal text-abai-muted">
                       N/A
                     </span>

@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StaffAnalyticsSummary } from "@/components/StaffAnalyticsSummary";
-import type { StaffAnalytics } from "@/lib/staff-analytics";
+import {
+  isSurveyV2Row,
+  overallForRow,
+  recommendLabelForRow,
+  type StaffAnalytics,
+} from "@/lib/staff-analytics";
 import type { GuestFeedbackRow } from "@/lib/types";
 
 function formatDate(iso: string) {
@@ -24,16 +29,21 @@ function scoreTone(value: number | null) {
   return "text-emerald-800";
 }
 
-function CommentCell({ comment }: { comment: string | null }) {
+function formatScore(value: number | null | undefined, naLabel = "N/A") {
+  if (value == null) return naLabel;
+  return String(value);
+}
+
+function TextCell({ text }: { text: string | null }) {
   const [open, setOpen] = useState(false);
-  if (!comment) {
+  if (!text) {
     return <span className="text-abai-muted">—</span>;
   }
-  const long = comment.length > 80;
+  const long = text.length > 80;
   return (
     <div className="max-w-[14rem]">
       <p className={`text-abai-ink ${open ? "whitespace-pre-wrap" : "line-clamp-2"}`}>
-        {comment}
+        {text}
       </p>
       {long ? (
         <button
@@ -45,6 +55,111 @@ function CommentCell({ comment }: { comment: string | null }) {
         </button>
       ) : null}
     </div>
+  );
+}
+
+const V2_DETAIL_FIELDS: { key: keyof GuestFeedbackRow; label: string }[] = [
+  { key: "reservation_ease", label: "Reservation" },
+  { key: "welcome_check_in", label: "Welcome / check-in" },
+  { key: "accommodation_comfort", label: "Accommodation" },
+  { key: "conference_facilities", label: "Conference" },
+  { key: "wifi_quality", label: "Wi‑Fi" },
+  { key: "recreational_leisure", label: "Leisure" },
+  { key: "spa_experience", label: "Spa" },
+  { key: "cleanliness_upkeep", label: "Cleanliness" },
+  { key: "food_taste_quality", label: "Food" },
+  { key: "service_promptness", label: "Service" },
+  { key: "staff_friendliness", label: "Staff" },
+  { key: "safety_security", label: "Safety" },
+  { key: "overall_experience", label: "Overall" },
+  { key: "recommend_score", label: "Recommend" },
+  { key: "value_for_money", label: "Value for money" },
+];
+
+const LEGACY_DETAIL_FIELDS: { key: keyof GuestFeedbackRow; label: string }[] = [
+  { key: "overall_stay", label: "Overall stay" },
+  { key: "check_in", label: "Check-in" },
+  { key: "room_cleanliness", label: "Room" },
+  { key: "food_drink", label: "F&B" },
+  { key: "spa_fitness", label: "Spa" },
+  { key: "staff_experience", label: "Staff" },
+  { key: "recommend", label: "Recommend" },
+];
+
+function DetailScores({ row }: { row: GuestFeedbackRow }) {
+  const v2 = isSurveyV2Row(row);
+  const fields = v2 ? V2_DETAIL_FIELDS : LEGACY_DETAIL_FIELDS;
+  return (
+    <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      {fields.map(({ key, label }) => {
+        const raw = row[key];
+        const display =
+          raw == null
+            ? v2 && typeof raw !== "string"
+              ? "N/A"
+              : "—"
+            : String(raw);
+        const tone =
+          typeof raw === "number" ? scoreTone(raw) : "text-abai-ink capitalize";
+        return (
+          <div key={String(key)} className="min-w-0">
+            <dt className="text-xs text-abai-muted">{label}</dt>
+            <dd className={`text-sm font-medium ${tone}`}>{display}</dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
+function FeedbackRow({ row }: { row: GuestFeedbackRow }) {
+  const [open, setOpen] = useState(false);
+  const overall = overallForRow(row);
+  const v2 = isSurveyV2Row(row);
+
+  return (
+    <>
+      <tr className="border-t border-abai-navy/10 align-top">
+        <td className="whitespace-nowrap px-3 py-3 text-abai-muted">
+          {formatDate(row.created_at)}
+        </td>
+        <td className="px-3 py-3 font-medium text-abai-ink">{row.guest_name}</td>
+        <td className="whitespace-nowrap px-3 py-3">{row.phone}</td>
+        <td className={`px-3 py-3 ${scoreTone(overall)}`}>
+          {formatScore(overall, "—")}
+          {!v2 ? (
+            <span className="ml-1 text-xs font-normal text-abai-muted">legacy</span>
+          ) : null}
+        </td>
+        <td className="px-3 py-3 capitalize">{recommendLabelForRow(row)}</td>
+        <td className="px-3 py-3 capitalize">
+          {row.value_for_money ?? "—"}
+        </td>
+        <td className="px-3 py-3">
+          <TextCell text={row.standout_staff_name} />
+        </td>
+        <td className="px-3 py-3">
+          <TextCell text={row.comment} />
+        </td>
+        <td className="px-3 py-3">
+          <button
+            type="button"
+            className="text-xs font-medium text-abai-navy underline-offset-2 hover:underline"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+          >
+            {open ? "Hide" : "Scores"}
+          </button>
+        </td>
+      </tr>
+      {open ? (
+        <tr className="border-t border-abai-navy/5 bg-white/70">
+          <td colSpan={9} className="px-3 py-4">
+            <DetailScores row={row} />
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 }
 
@@ -194,55 +309,23 @@ export function StaffFeedbackList() {
               <th className="px-3 py-3 font-medium">Guest</th>
               <th className="px-3 py-3 font-medium">Phone</th>
               <th className="px-3 py-3 font-medium">Overall</th>
-              <th className="px-3 py-3 font-medium">Check-in</th>
-              <th className="px-3 py-3 font-medium">Room</th>
-              <th className="px-3 py-3 font-medium">F&amp;B</th>
-              <th className="px-3 py-3 font-medium">Spa</th>
-              <th className="px-3 py-3 font-medium">Staff</th>
               <th className="px-3 py-3 font-medium">Recommend</th>
+              <th className="px-3 py-3 font-medium">Value</th>
+              <th className="px-3 py-3 font-medium">Standout</th>
               <th className="px-3 py-3 font-medium">Comment</th>
+              <th className="px-3 py-3 font-medium">Detail</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && !loading ? (
               <tr>
-                <td colSpan={11} className="px-3 py-8 text-center text-abai-muted">
+                <td colSpan={9} className="px-3 py-8 text-center text-abai-muted">
                   No feedback matches these filters.
                 </td>
               </tr>
             ) : null}
             {rows.map((row) => (
-              <tr key={row.id} className="border-t border-abai-navy/10 align-top">
-                <td className="whitespace-nowrap px-3 py-3 text-abai-muted">
-                  {formatDate(row.created_at)}
-                </td>
-                <td className="px-3 py-3 font-medium text-abai-ink">
-                  {row.guest_name}
-                </td>
-                <td className="whitespace-nowrap px-3 py-3">{row.phone}</td>
-                <td className={`px-3 py-3 ${scoreTone(row.overall_stay)}`}>
-                  {row.overall_stay}
-                </td>
-                <td className={`px-3 py-3 ${scoreTone(row.check_in)}`}>
-                  {row.check_in}
-                </td>
-                <td className={`px-3 py-3 ${scoreTone(row.room_cleanliness)}`}>
-                  {row.room_cleanliness}
-                </td>
-                <td className={`px-3 py-3 ${scoreTone(row.food_drink)}`}>
-                  {row.food_drink}
-                </td>
-                <td className={`px-3 py-3 ${scoreTone(row.spa_fitness)}`}>
-                  {row.spa_fitness ?? "N/A"}
-                </td>
-                <td className={`px-3 py-3 ${scoreTone(row.staff_experience)}`}>
-                  {row.staff_experience ?? "—"}
-                </td>
-                <td className="px-3 py-3 capitalize">{row.recommend}</td>
-                <td className="px-3 py-3">
-                  <CommentCell comment={row.comment} />
-                </td>
-              </tr>
+              <FeedbackRow key={row.id} row={row} />
             ))}
           </tbody>
         </table>
