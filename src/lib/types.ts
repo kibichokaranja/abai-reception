@@ -91,8 +91,8 @@ export const VALUE_FOR_MONEY_OPTIONS: {
   label: string;
 }[] = [
   { value: "yes", label: "Yes" },
-  { value: "maybe", label: "Maybe" },
   { value: "no", label: "No" },
+  { value: "maybe", label: "Maybe" },
 ];
 
 export const COMMENT_MAX_LENGTH = 1000;

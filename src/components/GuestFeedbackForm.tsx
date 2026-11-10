@@ -5,42 +5,70 @@ import { TapChoices } from "@/components/TapChoices";
 import {
   COMMENT_MAX_LENGTH,
   RATING_LABELS,
-  RECOMMEND_OPTIONS,
-  RecommendChoice,
+  STANDOUT_NAME_MAX_LENGTH,
+  VALUE_FOR_MONEY_OPTIONS,
+  type ValueForMoneyChoice,
 } from "@/lib/types";
 
 const RESET_MS = 5000;
 
+type RatingOrNa = number | "na";
+
 type FormState = {
   guest_name: string;
   phone: string;
-  overall_stay: number | null;
-  check_in: number | null;
-  room_cleanliness: number | null;
-  food_drink: number | null;
-  spa_fitness: number | "na" | null;
-  staff_experience: number | null;
+  reservation_ease: RatingOrNa | null;
+  welcome_check_in: RatingOrNa | null;
+  accommodation_comfort: RatingOrNa | null;
+  conference_facilities: RatingOrNa | null;
+  wifi_quality: number | null;
+  recreational_leisure: RatingOrNa | null;
+  spa_experience: RatingOrNa | null;
+  cleanliness_upkeep: number | null;
+  food_taste_quality: number | null;
+  service_promptness: number | null;
+  staff_friendliness: number | null;
+  standout_staff_name: string;
+  safety_security: number | null;
+  overall_experience: number | null;
+  value_for_money: ValueForMoneyChoice | null;
+  recommend_score: number | null;
   comment: string;
-  recommend: RecommendChoice | null;
 };
 
 const emptyForm: FormState = {
   guest_name: "",
   phone: "",
-  overall_stay: null,
-  check_in: null,
-  room_cleanliness: null,
-  food_drink: null,
-  spa_fitness: null,
-  staff_experience: null,
+  reservation_ease: null,
+  welcome_check_in: null,
+  accommodation_comfort: null,
+  conference_facilities: null,
+  wifi_quality: null,
+  recreational_leisure: null,
+  spa_experience: null,
+  cleanliness_upkeep: null,
+  food_taste_quality: null,
+  service_promptness: null,
+  staff_friendliness: null,
+  standout_staff_name: "",
+  safety_security: null,
+  overall_experience: null,
+  value_for_money: null,
+  recommend_score: null,
   comment: "",
-  recommend: null,
 };
 
-const SPA_OPTIONS = [
-  ...RATING_LABELS.map((r) => ({ value: r.value as number | "na", label: r.label })),
+const RATING_WITH_NA = [
+  ...RATING_LABELS.map((r) => ({
+    value: r.value as RatingOrNa,
+    label: r.label,
+  })),
   { value: "na" as const, label: "N/A" },
 ];
+
+function toNullableScore(value: RatingOrNa): number | null {
+  return value === "na" ? null : value;
+}
 
 export function GuestFeedbackForm() {
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -70,22 +98,41 @@ export function GuestFeedbackForm() {
       setError("Please enter your name and phone number.");
       return;
     }
+
     if (
-      form.overall_stay == null ||
-      form.check_in == null ||
-      form.room_cleanliness == null ||
-      form.food_drink == null ||
-      form.spa_fitness == null ||
-      form.staff_experience == null ||
-      form.recommend == null
+      form.reservation_ease == null ||
+      form.welcome_check_in == null ||
+      form.accommodation_comfort == null ||
+      form.conference_facilities == null ||
+      form.wifi_quality == null ||
+      form.recreational_leisure == null ||
+      form.spa_experience == null ||
+      form.cleanliness_upkeep == null ||
+      form.food_taste_quality == null ||
+      form.service_promptness == null ||
+      form.staff_friendliness == null ||
+      form.safety_security == null ||
+      form.overall_experience == null ||
+      form.value_for_money == null ||
+      form.recommend_score == null
     ) {
-      setError("Please answer every rating with a tap (the review text is optional).");
+      setError(
+        "Please answer every rating with a tap (standout name and comments are optional).",
+      );
+      return;
+    }
+
+    const standout = form.standout_staff_name.trim();
+    if (standout.length > STANDOUT_NAME_MAX_LENGTH) {
+      setError(
+        `Standout staff name must be ${STANDOUT_NAME_MAX_LENGTH} characters or fewer.`,
+      );
       return;
     }
 
     const comment = form.comment.trim();
     if (comment.length > COMMENT_MAX_LENGTH) {
-      setError(`Review text must be ${COMMENT_MAX_LENGTH} characters or fewer.`);
+      setError(`Comments must be ${COMMENT_MAX_LENGTH} characters or fewer.`);
       return;
     }
 
@@ -95,16 +142,26 @@ export function GuestFeedbackForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          survey_version: 2,
           guest_name: form.guest_name.trim(),
           phone: form.phone.trim(),
-          overall_stay: form.overall_stay,
-          check_in: form.check_in,
-          room_cleanliness: form.room_cleanliness,
-          food_drink: form.food_drink,
-          spa_fitness: form.spa_fitness === "na" ? null : form.spa_fitness,
-          staff_experience: form.staff_experience,
+          reservation_ease: toNullableScore(form.reservation_ease),
+          welcome_check_in: toNullableScore(form.welcome_check_in),
+          accommodation_comfort: toNullableScore(form.accommodation_comfort),
+          conference_facilities: toNullableScore(form.conference_facilities),
+          wifi_quality: form.wifi_quality,
+          recreational_leisure: toNullableScore(form.recreational_leisure),
+          spa_experience: toNullableScore(form.spa_experience),
+          cleanliness_upkeep: form.cleanliness_upkeep,
+          food_taste_quality: form.food_taste_quality,
+          service_promptness: form.service_promptness,
+          staff_friendliness: form.staff_friendliness,
+          standout_staff_name: standout.length > 0 ? standout : null,
+          safety_security: form.safety_security,
+          overall_experience: form.overall_experience,
+          value_for_money: form.value_for_money,
+          recommend_score: form.recommend_score,
           comment: comment.length > 0 ? comment : null,
-          recommend: form.recommend,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -149,8 +206,8 @@ export function GuestFeedbackForm() {
           How was your stay?
         </h1>
         <p className="mt-2 text-base text-abai-muted sm:text-lg">
-          A quick tap-through for our front desk — ratings required; a short
-          written review is optional.
+          Tap to rate each item. Use N/A where it does not apply. Two written
+          answers are optional.
         </p>
       </div>
 
@@ -188,53 +245,123 @@ export function GuestFeedbackForm() {
       </div>
 
       <TapChoices
-        label="Overall stay"
-        options={RATING_LABELS}
-        value={form.overall_stay}
-        onChange={(v) => update("overall_stay", v)}
-      />
-      <TapChoices
-        label="Check-in & reception"
-        options={RATING_LABELS}
-        value={form.check_in}
-        onChange={(v) => update("check_in", v)}
-      />
-      <TapChoices
-        label="Room cleanliness"
-        options={RATING_LABELS}
-        value={form.room_cleanliness}
-        onChange={(v) => update("room_cleanliness", v)}
-      />
-      <TapChoices
-        label="Food & drink"
-        options={RATING_LABELS}
-        value={form.food_drink}
-        onChange={(v) => update("food_drink", v)}
-      />
-      <TapChoices
-        label="Spa / fitness"
-        options={SPA_OPTIONS}
-        value={form.spa_fitness}
-        onChange={(v) => update("spa_fitness", v)}
+        label="Reservation ease/convenience"
+        options={RATING_WITH_NA}
+        value={form.reservation_ease}
+        onChange={(v) => update("reservation_ease", v)}
         columns={6}
       />
       <TapChoices
-        label="Customer experience with staff"
-        options={RATING_LABELS}
-        value={form.staff_experience}
-        onChange={(v) => update("staff_experience", v)}
+        label="Welcome / check-in"
+        options={RATING_WITH_NA}
+        value={form.welcome_check_in}
+        onChange={(v) => update("welcome_check_in", v)}
+        columns={6}
       />
       <TapChoices
-        label="Would you recommend us?"
-        options={RECOMMEND_OPTIONS}
-        value={form.recommend}
-        onChange={(v) => update("recommend", v)}
-        columns={3}
+        label="Accommodation comfort/quality"
+        options={RATING_WITH_NA}
+        value={form.accommodation_comfort}
+        onChange={(v) => update("accommodation_comfort", v)}
+        columns={6}
+      />
+      <TapChoices
+        label="Conference facilities"
+        options={RATING_WITH_NA}
+        value={form.conference_facilities}
+        onChange={(v) => update("conference_facilities", v)}
+        columns={6}
+      />
+      <TapChoices
+        label="Wi‑Fi speed/reliability/quality"
+        options={RATING_LABELS}
+        value={form.wifi_quality}
+        onChange={(v) => update("wifi_quality", v)}
+      />
+      <TapChoices
+        label="Recreational / leisure"
+        options={RATING_WITH_NA}
+        value={form.recreational_leisure}
+        onChange={(v) => update("recreational_leisure", v)}
+        columns={6}
+      />
+      <TapChoices
+        label="Spa experience"
+        options={RATING_WITH_NA}
+        value={form.spa_experience}
+        onChange={(v) => update("spa_experience", v)}
+        columns={6}
+      />
+      <TapChoices
+        label="Cleanliness / upkeep"
+        options={RATING_LABELS}
+        value={form.cleanliness_upkeep}
+        onChange={(v) => update("cleanliness_upkeep", v)}
+      />
+      <TapChoices
+        label="Food taste/quality"
+        options={RATING_LABELS}
+        value={form.food_taste_quality}
+        onChange={(v) => update("food_taste_quality", v)}
+      />
+      <TapChoices
+        label="Service promptness/efficiency"
+        options={RATING_LABELS}
+        value={form.service_promptness}
+        onChange={(v) => update("service_promptness", v)}
+      />
+      <TapChoices
+        label="Staff friendliness/courtesy/helpfulness"
+        options={RATING_LABELS}
+        value={form.staff_friendliness}
+        onChange={(v) => update("staff_friendliness", v)}
       />
 
       <label className="animate-fade-up block space-y-2">
         <span className="font-display text-xl font-semibold text-abai-ink sm:text-2xl">
-          Anything else you’d like to share?
+          Standout team member name
+        </span>
+        <span className="block text-sm text-abai-muted">Optional</span>
+        <input
+          type="text"
+          name="standout_staff_name"
+          maxLength={STANDOUT_NAME_MAX_LENGTH}
+          value={form.standout_staff_name}
+          onChange={(e) => update("standout_staff_name", e.target.value)}
+          className="min-h-14 w-full rounded-lg border-2 border-abai-navy/15 bg-white px-4 text-lg text-abai-ink outline-none focus:border-abai-gold"
+          placeholder="Name of a team member who stood out"
+        />
+      </label>
+
+      <TapChoices
+        label="Safety / security"
+        options={RATING_LABELS}
+        value={form.safety_security}
+        onChange={(v) => update("safety_security", v)}
+      />
+      <TapChoices
+        label="Overall experience"
+        options={RATING_LABELS}
+        value={form.overall_experience}
+        onChange={(v) => update("overall_experience", v)}
+      />
+      <TapChoices
+        label="Value for money"
+        options={VALUE_FOR_MONEY_OPTIONS}
+        value={form.value_for_money}
+        onChange={(v) => update("value_for_money", v)}
+        columns={3}
+      />
+      <TapChoices
+        label="Likelihood to recommend"
+        options={RATING_LABELS}
+        value={form.recommend_score}
+        onChange={(v) => update("recommend_score", v)}
+      />
+
+      <label className="animate-fade-up block space-y-2">
+        <span className="font-display text-xl font-semibold text-abai-ink sm:text-2xl">
+          Other comments / suggestions
         </span>
         <span className="block text-sm text-abai-muted">Optional</span>
         <textarea
@@ -244,7 +371,7 @@ export function GuestFeedbackForm() {
           value={form.comment}
           onChange={(e) => update("comment", e.target.value)}
           className="w-full rounded-lg border-2 border-abai-navy/15 bg-white px-4 py-3 text-base text-abai-ink outline-none focus:border-abai-gold"
-          placeholder="Tell us more about your stay (optional)"
+          placeholder="Anything else you’d like to share"
         />
         <span className="block text-right text-xs text-abai-muted">
           {form.comment.length}/{COMMENT_MAX_LENGTH}
@@ -252,7 +379,10 @@ export function GuestFeedbackForm() {
       </label>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800" role="alert">
+        <p
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800"
+          role="alert"
+        >
           {error}
         </p>
       ) : null}
