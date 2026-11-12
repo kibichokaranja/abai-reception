@@ -50,15 +50,6 @@ export function TapChoices<T extends string | number>({
               onClick={() => onChange(option.value)}
             >
               <span className="block leading-tight">{option.label}</span>
-              {typeof option.value === "number" ? (
-                <span
-                  className={`mt-1 block text-xs ${
-                    selected ? "text-abai-navy/70" : "text-abai-muted"
-                  }`}
-                >
-                  {option.value}
-                </span>
-              ) : null}
             </button>
           );
         })}
