@@ -91,25 +91,25 @@ Required taps before ratings: **Is this your first visit?** (Yes / No), **Purpos
 
 | # | Question | Control |
 |---|----------|---------|
-| 1 | Reservation ease/convenience | 1–5 + not applicable |
-| 2 | Welcome / check-in | 1–5 + not applicable |
-| 3 | Accommodation comfort/quality | 1–5 + not applicable |
-| 4 | Conference facilities | 1–5 + not applicable |
-| 5 | Wi‑Fi speed/reliability/quality | 1–5 + not applicable |
-| 6 | Recreational / leisure | 1–5 + not applicable |
-| 7 | Spa experience | 1–5 + not applicable |
-| 8 | Cleanliness / upkeep | 1–5 + not applicable |
-| 9 | Food taste/quality | 1–5 + not applicable |
-| 10 | Service promptness/efficiency | 1–5 + not applicable |
-| 11 | Staff friendliness/courtesy/helpfulness | 1–5 |
-| 12 | Standout team member name | Optional text |
-| 13 | Safety / security | 1–5 |
-| 14 | Overall experience | 1–5 |
-| 15 | Value for money | Yes / No / Maybe |
-| 16 | Likelihood to recommend | Least likely / Somewhat likely / Highly likely |
-| 17 | Other comments / suggestions | Optional text (max 1000) |
+| 1 | How would you describe the ease and convenience of making your reservation? | 1–5 + not applicable |
+| 2 | What was your impression of the welcome and check-in process? | 1–5 + not applicable |
+| 3 | How would you describe the comfort and quality of your accommodation? | 1–5 + not applicable |
+| 4 | To what extent did our conference facilities meet your expectations? | 1–5 + not applicable |
+| 5 | How would you rate the speed, reliability and quality of our Wi-Fi? | 1–5 |
+| 6 | What was your impression of our recreational and leisure facilities? | 1–5 + not applicable |
+| 7 | How would you describe the quality of your spa experience? | 1–5 + not applicable |
+| 8 | How satisfied were you with the cleanliness and general upkeep of our facilities? | 1–5 |
+| 9 | What was your impression of the taste and quality of our food? | 1–5 |
+| 10 | How would you assess the promptness and efficiency of our service? | 1–5 |
+| 11 | To what extent did our staff demonstrate friendliness, courtesy and helpfulness? | 1–5 |
+| 12 | Was there a member of our team whose service stood out? Kindly mention their name. | Optional text |
+| 13 | How would you rate the level of safety and security within the hotel? | 1–5 |
+| 14 | Taking everything into account, how would you rate your overall experience at Abai Lodges & Spa? | 1–5 |
+| 15 | Did your overall experience represent good value for money? | Yes / No / Maybe |
+| 16 | On a scale of 1–5, how likely are you to recommend Abai Lodges & Spa to friends, family or colleagues? | Least / Slightly / Somewhat / Very / Highly likely |
+| 17 | What else would you like to share with us or suggest for improvement? | Optional text (max 1000) |
 
-**Recommend score mapping:** guest taps map to `recommend_score` **1 / 3 / 5** (Least / Somewhat / Highly likely) on the existing 1–5 DB column so averages stay on the same scale as other ratings. Staff list shows those labels (not raw numbers).
+**Recommend score mapping:** guest taps map to `recommend_score` **1–5** (Least likely → Highly likely). Staff list shows those labels (short column headers unchanged).
 
 Legacy columns remain in the DB for older rows; staff UI still reads them.
 

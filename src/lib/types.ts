@@ -33,12 +33,12 @@ export type GuestFeedbackV2Input = {
   welcome_check_in: number | null;
   accommodation_comfort: number | null;
   conference_facilities: number | null;
-  wifi_quality: number | null;
+  wifi_quality: number;
   recreational_leisure: number | null;
   spa_experience: number | null;
-  cleanliness_upkeep: number | null;
-  food_taste_quality: number | null;
-  service_promptness: number | null;
+  cleanliness_upkeep: number;
+  food_taste_quality: number;
+  service_promptness: number;
   staff_friendliness: number;
   standout_staff_name: string | null;
   safety_security: number;
@@ -95,24 +95,27 @@ export const RATING_LABELS = [
 ] as const;
 
 /**
- * Likelihood to recommend — 3-point scale stored on the existing 1–5 column.
- * Mapping: 1 = Least likely, 3 = Somewhat likely, 5 = Highly likely.
- * Keeps averages comparable with other 1–5 scores and needs no DB constraint change.
+ * Likelihood to recommend — 5 labels on recommend_score 1–5.
+ * 1 Least likely · 2 Slightly likely · 3 Somewhat likely · 4 Very likely · 5 Highly likely
  */
-export type RecommendScore = 1 | 3 | 5;
+export type RecommendScore = 1 | 2 | 3 | 4 | 5;
 
 export const RECOMMEND_SCORE_OPTIONS: {
   value: RecommendScore;
   label: string;
 }[] = [
   { value: 1, label: "Least likely" },
+  { value: 2, label: "Slightly likely" },
   { value: 3, label: "Somewhat likely" },
+  { value: 4, label: "Very likely" },
   { value: 5, label: "Highly likely" },
 ];
 
 export const RECOMMEND_SCORE_LABELS: Record<RecommendScore, string> = {
   1: "Least likely",
+  2: "Slightly likely",
   3: "Somewhat likely",
+  4: "Very likely",
   5: "Highly likely",
 };
 

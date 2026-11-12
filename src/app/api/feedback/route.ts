@@ -25,9 +25,9 @@ function isOptionalRating(value: unknown): value is number | null {
   return value === null || isRating(value);
 }
 
-/** Likelihood to recommend: 1 / 3 / 5 (Least / Somewhat / Highly likely). */
-function isRecommendScore(value: unknown): value is 1 | 3 | 5 {
-  return value === 1 || value === 3 || value === 5;
+/** Likelihood to recommend: 1–5 (Least → Highly likely). */
+function isRecommendScore(value: unknown): value is number {
+  return isRating(value);
 }
 
 function isRecommend(value: unknown): value is RecommendChoice {
@@ -146,17 +146,14 @@ async function handleV2(body: Record<string, unknown>) {
     return NextResponse.json({ error: identity.error }, { status: 400 });
   }
 
+  // Q1–4, Q6–7 allow null (not applicable). Q5 / Q8–10 are required 1–5.
   const optionalKeys: { key: keyof GuestFeedbackV2Input; label: string }[] = [
     { key: "reservation_ease", label: "Reservation ease" },
     { key: "welcome_check_in", label: "Welcome / check-in" },
     { key: "accommodation_comfort", label: "Accommodation" },
     { key: "conference_facilities", label: "Conference facilities" },
-    { key: "wifi_quality", label: "Wi‑Fi" },
     { key: "recreational_leisure", label: "Recreational / leisure" },
     { key: "spa_experience", label: "Spa experience" },
-    { key: "cleanliness_upkeep", label: "Cleanliness" },
-    { key: "food_taste_quality", label: "Food" },
-    { key: "service_promptness", label: "Service" },
   ];
 
   const optionalValues: Record<string, number | null> = {};
@@ -169,6 +166,10 @@ async function handleV2(body: Record<string, unknown>) {
   }
 
   if (
+    !isRating(body.wifi_quality) ||
+    !isRating(body.cleanliness_upkeep) ||
+    !isRating(body.food_taste_quality) ||
+    !isRating(body.service_promptness) ||
     !isRating(body.staff_friendliness) ||
     !isRating(body.safety_security) ||
     !isRating(body.overall_experience)
@@ -183,7 +184,7 @@ async function handleV2(body: Record<string, unknown>) {
     return NextResponse.json(
       {
         error:
-          "Likelihood to recommend must be 1 (Least likely), 3 (Somewhat likely), or 5 (Highly likely)",
+          "Likelihood to recommend must be 1–5 (Least likely → Highly likely)",
       },
       { status: 400 },
     );
@@ -244,12 +245,12 @@ async function handleV2(body: Record<string, unknown>) {
     welcome_check_in: optionalValues.welcome_check_in,
     accommodation_comfort: optionalValues.accommodation_comfort,
     conference_facilities: optionalValues.conference_facilities,
-    wifi_quality: optionalValues.wifi_quality,
+    wifi_quality: body.wifi_quality,
     recreational_leisure: optionalValues.recreational_leisure,
     spa_experience: optionalValues.spa_experience,
-    cleanliness_upkeep: optionalValues.cleanliness_upkeep,
-    food_taste_quality: optionalValues.food_taste_quality,
-    service_promptness: optionalValues.service_promptness,
+    cleanliness_upkeep: body.cleanliness_upkeep,
+    food_taste_quality: body.food_taste_quality,
+    service_promptness: body.service_promptness,
     staff_friendliness: body.staff_friendliness,
     standout_staff_name,
     safety_security: body.safety_security,
