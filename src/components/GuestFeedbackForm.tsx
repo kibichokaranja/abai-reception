@@ -29,12 +29,12 @@ type FormState = {
   welcome_check_in: RatingOrNa | null;
   accommodation_comfort: RatingOrNa | null;
   conference_facilities: RatingOrNa | null;
-  wifi_quality: RatingOrNa | null;
+  wifi_quality: number | null;
   recreational_leisure: RatingOrNa | null;
   spa_experience: RatingOrNa | null;
-  cleanliness_upkeep: RatingOrNa | null;
-  food_taste_quality: RatingOrNa | null;
-  service_promptness: RatingOrNa | null;
+  cleanliness_upkeep: number | null;
+  food_taste_quality: number | null;
+  service_promptness: number | null;
   staff_friendliness: number | null;
   standout_staff_name: string;
   safety_security: number | null;
@@ -183,12 +183,12 @@ export function GuestFeedbackForm() {
           welcome_check_in: toNullableScore(form.welcome_check_in),
           accommodation_comfort: toNullableScore(form.accommodation_comfort),
           conference_facilities: toNullableScore(form.conference_facilities),
-          wifi_quality: toNullableScore(form.wifi_quality),
+          wifi_quality: form.wifi_quality,
           recreational_leisure: toNullableScore(form.recreational_leisure),
           spa_experience: toNullableScore(form.spa_experience),
-          cleanliness_upkeep: toNullableScore(form.cleanliness_upkeep),
-          food_taste_quality: toNullableScore(form.food_taste_quality),
-          service_promptness: toNullableScore(form.service_promptness),
+          cleanliness_upkeep: form.cleanliness_upkeep,
+          food_taste_quality: form.food_taste_quality,
+          service_promptness: form.service_promptness,
           staff_friendliness: form.staff_friendliness,
           standout_staff_name: standout.length > 0 ? standout : null,
           safety_security: form.safety_security,
@@ -308,77 +308,73 @@ export function GuestFeedbackForm() {
       />
 
       <TapChoices
-        label="Reservation ease/convenience"
+        label="How would you describe the ease and convenience of making your reservation?"
         options={RATING_WITH_NA}
         value={form.reservation_ease}
         onChange={(v) => update("reservation_ease", v)}
         columns={6}
       />
       <TapChoices
-        label="Welcome / check-in"
+        label="What was your impression of the welcome and check-in process?"
         options={RATING_WITH_NA}
         value={form.welcome_check_in}
         onChange={(v) => update("welcome_check_in", v)}
         columns={6}
       />
       <TapChoices
-        label="Accommodation comfort/quality"
+        label="How would you describe the comfort and quality of your accommodation?"
         options={RATING_WITH_NA}
         value={form.accommodation_comfort}
         onChange={(v) => update("accommodation_comfort", v)}
         columns={6}
       />
       <TapChoices
-        label="Conference facilities"
+        label="To what extent did our conference facilities meet your expectations?"
         options={RATING_WITH_NA}
         value={form.conference_facilities}
         onChange={(v) => update("conference_facilities", v)}
         columns={6}
       />
       <TapChoices
-        label="Wi‑Fi speed/reliability/quality"
-        options={RATING_WITH_NA}
+        label="How would you rate the speed, reliability and quality of our Wi-Fi?"
+        options={RATING_LABELS}
         value={form.wifi_quality}
         onChange={(v) => update("wifi_quality", v)}
-        columns={6}
       />
       <TapChoices
-        label="Recreational / leisure"
+        label="What was your impression of our recreational and leisure facilities?"
         options={RATING_WITH_NA}
         value={form.recreational_leisure}
         onChange={(v) => update("recreational_leisure", v)}
         columns={6}
       />
       <TapChoices
-        label="Spa experience"
+        label="How would you describe the quality of your spa experience?"
         options={RATING_WITH_NA}
         value={form.spa_experience}
         onChange={(v) => update("spa_experience", v)}
         columns={6}
       />
       <TapChoices
-        label="Cleanliness / upkeep"
-        options={RATING_WITH_NA}
+        label="How satisfied were you with the cleanliness and general upkeep of our facilities?"
+        options={RATING_LABELS}
         value={form.cleanliness_upkeep}
         onChange={(v) => update("cleanliness_upkeep", v)}
-        columns={6}
       />
       <TapChoices
-        label="Food taste/quality"
-        options={RATING_WITH_NA}
+        label="What was your impression of the taste and quality of our food?"
+        options={RATING_LABELS}
         value={form.food_taste_quality}
         onChange={(v) => update("food_taste_quality", v)}
-        columns={6}
       />
       <TapChoices
-        label="Service promptness/efficiency"
-        options={RATING_WITH_NA}
+        label="How would you assess the promptness and efficiency of our service?"
+        options={RATING_LABELS}
         value={form.service_promptness}
         onChange={(v) => update("service_promptness", v)}
-        columns={6}
       />
       <TapChoices
-        label="Staff friendliness/courtesy/helpfulness"
+        label="To what extent did our staff demonstrate friendliness, courtesy and helpfulness?"
         options={RATING_LABELS}
         value={form.staff_friendliness}
         onChange={(v) => update("staff_friendliness", v)}
@@ -386,7 +382,8 @@ export function GuestFeedbackForm() {
 
       <label className="animate-fade-up block space-y-2">
         <span className="font-display text-xl font-semibold text-abai-ink sm:text-2xl">
-          Standout team member name
+          Was there a member of our team whose service stood out? Kindly mention
+          their name.
         </span>
         <span className="block text-sm text-abai-muted">Optional</span>
         <input
@@ -401,35 +398,34 @@ export function GuestFeedbackForm() {
       </label>
 
       <TapChoices
-        label="Safety / security"
+        label="How would you rate the level of safety and security within the hotel?"
         options={RATING_LABELS}
         value={form.safety_security}
         onChange={(v) => update("safety_security", v)}
       />
       <TapChoices
-        label="Overall experience"
+        label="Taking everything into account, how would you rate your overall experience at Abai Lodges & Spa?"
         options={RATING_LABELS}
         value={form.overall_experience}
         onChange={(v) => update("overall_experience", v)}
       />
       <TapChoices
-        label="Value for money"
+        label="Did your overall experience represent good value for money?"
         options={VALUE_FOR_MONEY_OPTIONS}
         value={form.value_for_money}
         onChange={(v) => update("value_for_money", v)}
         columns={3}
       />
       <TapChoices
-        label="Likelihood to recommend"
+        label="On a scale of 1–5, how likely are you to recommend Abai Lodges & Spa to friends, family or colleagues?"
         options={RECOMMEND_SCORE_OPTIONS}
         value={form.recommend_score}
         onChange={(v) => update("recommend_score", v)}
-        columns={3}
       />
 
       <label className="animate-fade-up block space-y-2">
         <span className="font-display text-xl font-semibold text-abai-ink sm:text-2xl">
-          Other comments / suggestions
+          What else would you like to share with us or suggest for improvement?
         </span>
         <span className="block text-sm text-abai-muted">Optional</span>
         <textarea

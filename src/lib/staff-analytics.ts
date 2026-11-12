@@ -1,5 +1,4 @@
 import {
-  RATING_LABELS,
   RECOMMEND_SCORE_LABELS,
   type GuestFeedbackRow,
   type RecommendChoice,
@@ -107,9 +106,7 @@ export function recommendLabelForRow(row: GuestFeedbackRow): string {
     const mapped =
       RECOMMEND_SCORE_LABELS[row.recommend_score as RecommendScore];
     if (mapped) return mapped;
-    // Pre–3-point rows may still hold 2 or 4 from Poor–Excellent.
-    const legacy = RATING_LABELS.find((r) => r.value === row.recommend_score);
-    return legacy?.label ?? String(row.recommend_score);
+    return String(row.recommend_score);
   }
   if (row.recommend) return row.recommend;
   return "—";

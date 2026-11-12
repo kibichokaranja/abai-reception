@@ -31,7 +31,7 @@ export function TapChoices<T extends string | number>({
 
   return (
     <fieldset className="animate-fade-up space-y-3">
-      <legend className="font-display text-xl font-semibold text-abai-ink sm:text-2xl">
+      <legend className="max-w-full font-display text-lg font-semibold leading-snug text-abai-ink sm:text-xl">
         {label}
       </legend>
       <div className={`grid gap-2 ${gridClass}`}>
