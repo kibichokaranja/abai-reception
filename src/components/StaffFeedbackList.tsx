@@ -125,13 +125,17 @@ function DetailScores({ row }: { row: GuestFeedbackRow }) {
       {fields.map(({ key, label }) => {
         const raw = row[key];
         const display =
-          raw == null
-            ? v2 && typeof raw !== "string"
-              ? "N/A"
-              : "—"
-            : String(raw);
+          key === "recommend_score"
+            ? recommendLabelForRow(row)
+            : raw == null
+              ? v2 && typeof raw !== "string"
+                ? "N/A"
+                : "—"
+              : String(raw);
         const tone =
-          typeof raw === "number" ? scoreTone(raw) : "text-abai-ink capitalize";
+          typeof raw === "number" && key !== "recommend_score"
+            ? scoreTone(raw)
+            : "text-abai-ink capitalize";
         return (
           <div key={String(key)} className="min-w-0">
             <dt className="text-xs text-abai-muted">{label}</dt>

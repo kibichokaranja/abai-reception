@@ -94,6 +94,28 @@ export const RATING_LABELS = [
   { value: 5, label: "Excellent" },
 ] as const;
 
+/**
+ * Likelihood to recommend — 3-point scale stored on the existing 1–5 column.
+ * Mapping: 1 = Least likely, 3 = Somewhat likely, 5 = Highly likely.
+ * Keeps averages comparable with other 1–5 scores and needs no DB constraint change.
+ */
+export type RecommendScore = 1 | 3 | 5;
+
+export const RECOMMEND_SCORE_OPTIONS: {
+  value: RecommendScore;
+  label: string;
+}[] = [
+  { value: 1, label: "Least likely" },
+  { value: 3, label: "Somewhat likely" },
+  { value: 5, label: "Highly likely" },
+];
+
+export const RECOMMEND_SCORE_LABELS: Record<RecommendScore, string> = {
+  1: "Least likely",
+  3: "Somewhat likely",
+  5: "Highly likely",
+};
+
 export const RECOMMEND_OPTIONS: { value: RecommendChoice; label: string }[] = [
   { value: "yes", label: "Yes" },
   { value: "maybe", label: "Maybe" },

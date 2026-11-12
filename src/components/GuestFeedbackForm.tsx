@@ -7,6 +7,7 @@ import {
   FIRST_VISIT_OPTIONS,
   PURPOSE_OF_VISIT_OPTIONS,
   RATING_LABELS,
+  RECOMMEND_SCORE_OPTIONS,
   STANDOUT_NAME_MAX_LENGTH,
   VALUE_FOR_MONEY_OPTIONS,
   type FirstVisitChoice,
@@ -420,9 +421,10 @@ export function GuestFeedbackForm() {
       />
       <TapChoices
         label="Likelihood to recommend"
-        options={RATING_LABELS}
+        options={RECOMMEND_SCORE_OPTIONS}
         value={form.recommend_score}
         onChange={(v) => update("recommend_score", v)}
+        columns={3}
       />
 
       <label className="animate-fade-up block space-y-2">
