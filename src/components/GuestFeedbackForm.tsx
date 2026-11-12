@@ -81,6 +81,8 @@ function toNullableScore(value: RatingOrNa): number | null {
 
 export function GuestFeedbackForm() {
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [consentChecked, setConsentChecked] = useState(false);
+  const [consentError, setConsentError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [thanks, setThanks] = useState(false);
@@ -94,6 +96,8 @@ export function GuestFeedbackForm() {
     if (!thanks) return;
     const timer = window.setTimeout(() => {
       setForm(emptyForm);
+      setConsentChecked(false);
+      setConsentError(false);
       setThanks(false);
       setError(null);
     }, RESET_MS);
@@ -107,6 +111,13 @@ export function GuestFeedbackForm() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+    setConsentError(false);
+
+    if (!consentChecked) {
+      setConsentError(true);
+      setError("Please tick the consent box before submitting.");
+      return;
+    }
 
     if (form.guest_name.trim().length > 120) {
       setError("Name must be 120 characters or fewer.");
@@ -235,11 +246,6 @@ export function GuestFeedbackForm() {
           and written answers are optional.
         </p>
       </div>
-
-      <p className="animate-fade-up text-center text-sm leading-relaxed text-abai-muted">
-        By submitting this form, you allow Abai Lodges &amp; Spa to collect your
-        guest information and review for service and quality improvement.
-      </p>
 
       <div className="animate-fade-up grid gap-4 sm:grid-cols-3">
         <label className="block space-y-2">
@@ -436,6 +442,54 @@ export function GuestFeedbackForm() {
           {form.comment.length}/{COMMENT_MAX_LENGTH}
         </span>
       </label>
+
+      <div
+        className={`animate-fade-up space-y-3 rounded-xl border-2 px-4 py-4 ${
+          consentError
+            ? "border-red-300 bg-red-50/80"
+            : "border-abai-navy/15 bg-white/70"
+        }`}
+      >
+        <p className="text-sm leading-relaxed text-abai-muted">
+          By submitting this form, you allow Abai Lodges &amp; Spa to collect
+          your guest information and review for service and quality improvement.
+        </p>
+        <label className="flex cursor-pointer items-start gap-3 text-base text-abai-ink">
+          <input
+            type="checkbox"
+            name="consent"
+            checked={consentChecked}
+            onChange={(e) => {
+              setConsentChecked(e.target.checked);
+              if (e.target.checked) {
+                setConsentError(false);
+                setError((prev) =>
+                  prev === "Please tick the consent box before submitting."
+                    ? null
+                    : prev,
+                );
+              }
+            }}
+            aria-invalid={consentError}
+            aria-describedby={consentError ? "consent-error" : undefined}
+            className="mt-1 size-5 shrink-0 rounded border-2 border-abai-navy/30 accent-abai-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-abai-gold"
+          />
+          <span>
+            I agree to the collection and review of my guest information as
+            described above.{" "}
+            <span className="font-semibold text-abai-navy">Required</span>
+          </span>
+        </label>
+        {consentError ? (
+          <p
+            id="consent-error"
+            className="text-sm font-medium text-red-800"
+            role="alert"
+          >
+            Please tick this box to continue.
+          </p>
+        ) : null}
+      </div>
 
       {error ? (
         <p

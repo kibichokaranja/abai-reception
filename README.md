@@ -2,7 +2,7 @@
 
 Front-desk / QR guest feedback for **Abai Lodges & Spa** (“Exclusivity Redefined”).
 
-- Guest kiosk form at `/` — optional name + phone, then **survey v2** (17 questions); consent disclaimer above identity fields
+- Guest kiosk form at `/` — optional name + phone, then **survey v2** (17 questions); consent disclaimer + required checkbox above submit
 - Staff browse page at `/staff` — password gate, filters, **At a glance** analytics, expandable score detail
 - Footer brand QR: “Scan to open on your phone”
 - Supabase Postgres + RLS; Vercel-ready Next.js App Router + Tailwind
