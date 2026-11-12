@@ -28,12 +28,12 @@ type FormState = {
   welcome_check_in: RatingOrNa | null;
   accommodation_comfort: RatingOrNa | null;
   conference_facilities: RatingOrNa | null;
-  wifi_quality: number | null;
+  wifi_quality: RatingOrNa | null;
   recreational_leisure: RatingOrNa | null;
   spa_experience: RatingOrNa | null;
-  cleanliness_upkeep: number | null;
-  food_taste_quality: number | null;
-  service_promptness: number | null;
+  cleanliness_upkeep: RatingOrNa | null;
+  food_taste_quality: RatingOrNa | null;
+  service_promptness: RatingOrNa | null;
   staff_friendliness: number | null;
   standout_staff_name: string;
   safety_security: number | null;
@@ -72,7 +72,7 @@ const RATING_WITH_NA = [
     value: r.value as RatingOrNa,
     label: r.label,
   })),
-  { value: "na" as const, label: "N/A" },
+  { value: "na" as const, label: "not applicable" },
 ];
 
 function toNullableScore(value: RatingOrNa): number | null {
@@ -182,12 +182,12 @@ export function GuestFeedbackForm() {
           welcome_check_in: toNullableScore(form.welcome_check_in),
           accommodation_comfort: toNullableScore(form.accommodation_comfort),
           conference_facilities: toNullableScore(form.conference_facilities),
-          wifi_quality: form.wifi_quality,
+          wifi_quality: toNullableScore(form.wifi_quality),
           recreational_leisure: toNullableScore(form.recreational_leisure),
           spa_experience: toNullableScore(form.spa_experience),
-          cleanliness_upkeep: form.cleanliness_upkeep,
-          food_taste_quality: form.food_taste_quality,
-          service_promptness: form.service_promptness,
+          cleanliness_upkeep: toNullableScore(form.cleanliness_upkeep),
+          food_taste_quality: toNullableScore(form.food_taste_quality),
+          service_promptness: toNullableScore(form.service_promptness),
           staff_friendliness: form.staff_friendliness,
           standout_staff_name: standout.length > 0 ? standout : null,
           safety_security: form.safety_security,
@@ -239,8 +239,8 @@ export function GuestFeedbackForm() {
           Guest feedback form
         </h1>
         <p className="mt-2 text-base text-abai-muted sm:text-lg">
-          Tap to rate each item. Use N/A where it does not apply. Name, phone,
-          and written answers are optional.
+          Tap to rate each item. Use not applicable where it does not apply.
+          Name, phone, and written answers are optional.
         </p>
       </div>
 
@@ -336,9 +336,10 @@ export function GuestFeedbackForm() {
       />
       <TapChoices
         label="Wi‑Fi speed/reliability/quality"
-        options={RATING_LABELS}
+        options={RATING_WITH_NA}
         value={form.wifi_quality}
         onChange={(v) => update("wifi_quality", v)}
+        columns={6}
       />
       <TapChoices
         label="Recreational / leisure"
@@ -356,21 +357,24 @@ export function GuestFeedbackForm() {
       />
       <TapChoices
         label="Cleanliness / upkeep"
-        options={RATING_LABELS}
+        options={RATING_WITH_NA}
         value={form.cleanliness_upkeep}
         onChange={(v) => update("cleanliness_upkeep", v)}
+        columns={6}
       />
       <TapChoices
         label="Food taste/quality"
-        options={RATING_LABELS}
+        options={RATING_WITH_NA}
         value={form.food_taste_quality}
         onChange={(v) => update("food_taste_quality", v)}
+        columns={6}
       />
       <TapChoices
         label="Service promptness/efficiency"
-        options={RATING_LABELS}
+        options={RATING_WITH_NA}
         value={form.service_promptness}
         onChange={(v) => update("service_promptness", v)}
+        columns={6}
       />
       <TapChoices
         label="Staff friendliness/courtesy/helpfulness"

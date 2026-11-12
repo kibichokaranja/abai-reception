@@ -146,8 +146,12 @@ async function handleV2(body: Record<string, unknown>) {
     { key: "welcome_check_in", label: "Welcome / check-in" },
     { key: "accommodation_comfort", label: "Accommodation" },
     { key: "conference_facilities", label: "Conference facilities" },
+    { key: "wifi_quality", label: "Wi‑Fi" },
     { key: "recreational_leisure", label: "Recreational / leisure" },
     { key: "spa_experience", label: "Spa experience" },
+    { key: "cleanliness_upkeep", label: "Cleanliness" },
+    { key: "food_taste_quality", label: "Food" },
+    { key: "service_promptness", label: "Service" },
   ];
 
   const optionalValues: Record<string, number | null> = {};
@@ -160,10 +164,6 @@ async function handleV2(body: Record<string, unknown>) {
   }
 
   if (
-    !isRating(body.wifi_quality) ||
-    !isRating(body.cleanliness_upkeep) ||
-    !isRating(body.food_taste_quality) ||
-    !isRating(body.service_promptness) ||
     !isRating(body.staff_friendliness) ||
     !isRating(body.safety_security) ||
     !isRating(body.overall_experience) ||
@@ -230,12 +230,12 @@ async function handleV2(body: Record<string, unknown>) {
     welcome_check_in: optionalValues.welcome_check_in,
     accommodation_comfort: optionalValues.accommodation_comfort,
     conference_facilities: optionalValues.conference_facilities,
-    wifi_quality: body.wifi_quality,
+    wifi_quality: optionalValues.wifi_quality,
     recreational_leisure: optionalValues.recreational_leisure,
     spa_experience: optionalValues.spa_experience,
-    cleanliness_upkeep: body.cleanliness_upkeep,
-    food_taste_quality: body.food_taste_quality,
-    service_promptness: body.service_promptness,
+    cleanliness_upkeep: optionalValues.cleanliness_upkeep,
+    food_taste_quality: optionalValues.food_taste_quality,
+    service_promptness: optionalValues.service_promptness,
     staff_friendliness: body.staff_friendliness,
     standout_staff_name,
     safety_security: body.safety_security,
