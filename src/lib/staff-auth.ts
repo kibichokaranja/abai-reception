@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 export const STAFF_COOKIE = "abai_staff_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12; // 12 hours
 
+export type StaffRole = "owner" | "reception";
+
 function getSecret(): Uint8Array {
   const secret = process.env.STAFF_SESSION_SECRET;
   if (!secret || secret.length < 16) {
@@ -16,34 +18,62 @@ export function staffPasswordConfigured(): boolean {
   return Boolean(process.env.STAFF_PASSWORD && process.env.STAFF_PASSWORD.length > 0);
 }
 
+export function receptionPasswordConfigured(): boolean {
+  return Boolean(
+    process.env.RECEPTION_PASSWORD && process.env.RECEPTION_PASSWORD.length > 0,
+  );
+}
+
 export function verifyStaffPassword(password: string): boolean {
   const expected = process.env.STAFF_PASSWORD;
   if (!expected) return false;
   return password === expected;
 }
 
-export async function createStaffSessionToken(): Promise<string> {
-  return new SignJWT({ role: "staff" })
+export function verifyReceptionPassword(password: string): boolean {
+  const expected = process.env.RECEPTION_PASSWORD;
+  if (!expected) return false;
+  return password === expected;
+}
+
+export async function createStaffSessionToken(role: StaffRole): Promise<string> {
+  return new SignJWT({ role })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
     .sign(getSecret());
 }
 
-export async function isValidStaffToken(token: string | undefined): Promise<boolean> {
-  if (!token) return false;
+function normalizeRole(raw: unknown): StaffRole | null {
+  // Legacy sessions used role: "staff" — treat as owner.
+  if (raw === "owner" || raw === "staff") return "owner";
+  if (raw === "reception") return "reception";
+  return null;
+}
+
+export async function getStaffSession(): Promise<{ role: StaffRole } | null> {
+  const jar = await cookies();
+  const token = jar.get(STAFF_COOKIE)?.value;
+  if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, getSecret());
-    return payload.role === "staff";
+    const role = normalizeRole(payload.role);
+    if (!role) return null;
+    return { role };
   } catch {
-    return false;
+    return null;
   }
 }
 
+/** Owner (/staff) session — legacy name kept for existing call sites. */
 export async function isStaffAuthenticated(): Promise<boolean> {
-  const jar = await cookies();
-  const token = jar.get(STAFF_COOKIE)?.value;
-  return isValidStaffToken(token);
+  const session = await getStaffSession();
+  return session?.role === "owner";
+}
+
+export async function isReceptionAuthenticated(): Promise<boolean> {
+  const session = await getStaffSession();
+  return session?.role === "reception";
 }
 
 export function staffCookieOptions(maxAge = SESSION_TTL_SECONDS) {

@@ -28,8 +28,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const token = await createStaffSessionToken();
-    const response = NextResponse.json({ ok: true });
+    const token = await createStaffSessionToken("owner");
+    const response = NextResponse.json({ ok: true, role: "owner" });
     response.cookies.set(STAFF_COOKIE, token, staffCookieOptions());
     return response;
   } catch (err) {

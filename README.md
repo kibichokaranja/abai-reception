@@ -3,7 +3,8 @@
 Front-desk / QR guest feedback for **Abai Lodges & Spa** (“Exclusivity Redefined”).
 
 - Guest kiosk form at `/` — optional name + phone, then **survey v2** (17 questions); consent disclaimer + required checkbox above submit
-- Staff browse page at `/staff` — password gate, filters, **At a glance** analytics, expandable score detail
+- **Owner** browse at `/staff` — `STAFF_PASSWORD`, full filters, **At a glance** analytics, expandable score detail
+- **Reception desk** at `/reception` — `RECEPTION_PASSWORD`, simpler table, default last 7 days by `visit_date` (phones visible; no analytics strip)
 - Footer brand QR: “Scan to open on your phone”
 - Supabase Postgres + RLS; Vercel-ready Next.js App Router + Tailwind
 
@@ -11,7 +12,7 @@ Front-desk / QR guest feedback for **Abai Lodges & Spa** (“Exclusivity Redefin
 
 - Next.js 15 (App Router) + Tailwind CSS 4
 - Supabase (`guest_feedback` table)
-- Env-based staff password + signed HTTP-only cookie session
+- Env-based owner + reception passwords + signed HTTP-only cookie session (`role: owner | reception`)
 
 ## Local setup
 
@@ -22,7 +23,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) for the guest form and [http://localhost:3000/staff](http://localhost:3000/staff) for staff.
+Open [http://localhost:3000](http://localhost:3000) for the guest form, [http://localhost:3000/staff](http://localhost:3000/staff) for owner, and [http://localhost:3000/reception](http://localhost:3000/reception) for the desk.
 
 ## Supabase
 
@@ -48,7 +49,7 @@ Open [http://localhost:3000](http://localhost:3000) for the guest form and [http
 |------|------------|
 | `anon` | `INSERT` only (public form) |
 | `authenticated` | `SELECT` (reserved for future auth) |
-| Service role | Full access (used by `/api/staff/feedback` after password login) |
+| Service role | Full access (used by `/api/staff/feedback` after owner or reception login) |
 
 ## Environment variables
 
@@ -57,10 +58,11 @@ Open [http://localhost:3000](http://localhost:3000) for the guest form and [http
 | `NEXT_PUBLIC_SUPABASE_URL` | Client + server | Supabase project URL (`https://….supabase.co`) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client + server | Guest inserts — legacy `anon` JWT **or** set `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (`sb_publishable_…`) instead |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server only | Staff reads — legacy `service_role` JWT **or** set `SUPABASE_SECRET_KEY` (`sb_secret_…`) instead. Never put anon/publishable here |
-| `STAFF_PASSWORD` | Server only | Shared front-desk password for `/staff` |
-| `STAFF_SESSION_SECRET` | Server only | Signs staff session cookie (≥16 chars) |
+| `STAFF_PASSWORD` | Server only | Owner password for `/staff` (full feedback + analytics) |
+| `RECEPTION_PASSWORD` | Server only | Reception desk password for `/reception` |
+| `STAFF_SESSION_SECRET` | Server only | Signs staff session cookie with `role: owner \| reception` (≥16 chars) |
 
-If `/staff` shows a Supabase load error after guests can submit: confirm `SUPABASE_SERVICE_ROLE_KEY` is the **service_role / secret** key (not anon), run the grants migration, then **Redeploy**.
+If `/staff` or `/reception` shows a Supabase load error after guests can submit: confirm `SUPABASE_SERVICE_ROLE_KEY` is the **service_role / secret** key (not anon), run the grants migration, then **Redeploy**.
 
 ## Vercel deploy
 
@@ -76,7 +78,8 @@ Repo includes `vercel.json` with `"framework": "nextjs"`.
 1. Import `kibichokaranja/abai-reception`.
 2. Paste env vars for Production.
 3. Run survey v2 SQL if not already applied → **Redeploy**.
-4. Guest: `/` · Staff: `/staff`.
+4. Guest: `/` · Owner: `/staff` · Reception: `/reception`.
+5. Set **`RECEPTION_PASSWORD`** (and existing `STAFF_PASSWORD` / `STAFF_SESSION_SECRET`) on **every** Vercel project that hosts this app, then Redeploy.
 
 ### QR / tablet kiosk
 
@@ -118,9 +121,10 @@ Legacy columns remain in the DB for older rows; staff UI still reads them.
 1. Open production `/` — 17 questions + footer QR visible.
 2. Submit with not applicable on at least one optional rating, fill standout name + comment, complete required taps.
 3. Confirm thank-you, then auto-reset.
-4. Open `/staff`, sign in, confirm the new row (First visit / Purpose / Overall / Recommend / Value / Standout / Comment).
+4. Open `/staff`, sign in with `STAFF_PASSWORD`, confirm the new row (First visit / Purpose / Overall / Recommend / Value / Standout / Comment).
 5. Expand **Scores**; confirm At a glance averages and value-for-money mix update.
-6. Legacy rows (if any) still list with a legacy marker.
+6. Open `/reception`, sign in with `RECEPTION_PASSWORD`, confirm the simpler table (When / Visit date / Guest / Phone / Overall / Recommend / Comment) defaults to the last 7 visit days and shows the phone.
+7. Legacy rows (if any) still list on `/staff` with a legacy marker.
 
 ## Scripts
 
