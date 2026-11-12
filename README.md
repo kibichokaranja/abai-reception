@@ -91,16 +91,16 @@ Required taps before ratings: **Is this your first visit?** (Yes / No), **Purpos
 
 | # | Question | Control |
 |---|----------|---------|
-| 1 | Reservation ease/convenience | 1–5 + N/A |
-| 2 | Welcome / check-in | 1–5 + N/A |
-| 3 | Accommodation comfort/quality | 1–5 + N/A |
-| 4 | Conference facilities | 1–5 + N/A |
-| 5 | Wi‑Fi speed/reliability/quality | 1–5 |
-| 6 | Recreational / leisure | 1–5 + N/A |
-| 7 | Spa experience | 1–5 + N/A |
-| 8 | Cleanliness / upkeep | 1–5 |
-| 9 | Food taste/quality | 1–5 |
-| 10 | Service promptness/efficiency | 1–5 |
+| 1 | Reservation ease/convenience | 1–5 + not applicable |
+| 2 | Welcome / check-in | 1–5 + not applicable |
+| 3 | Accommodation comfort/quality | 1–5 + not applicable |
+| 4 | Conference facilities | 1–5 + not applicable |
+| 5 | Wi‑Fi speed/reliability/quality | 1–5 + not applicable |
+| 6 | Recreational / leisure | 1–5 + not applicable |
+| 7 | Spa experience | 1–5 + not applicable |
+| 8 | Cleanliness / upkeep | 1–5 + not applicable |
+| 9 | Food taste/quality | 1–5 + not applicable |
+| 10 | Service promptness/efficiency | 1–5 + not applicable |
 | 11 | Staff friendliness/courtesy/helpfulness | 1–5 |
 | 12 | Standout team member name | Optional text |
 | 13 | Safety / security | 1–5 |
@@ -114,7 +114,7 @@ Legacy columns remain in the DB for older rows; staff UI still reads them.
 ## Smoke-test (after SQL + Redeploy)
 
 1. Open production `/` — 17 questions + footer QR visible.
-2. Submit with N/A on at least one optional rating, fill standout name + comment, complete required taps.
+2. Submit with not applicable on at least one optional rating, fill standout name + comment, complete required taps.
 3. Confirm thank-you, then auto-reset.
 4. Open `/staff`, sign in, confirm the new row (First visit / Purpose / Overall / Recommend / Value / Standout / Comment).
 5. Expand **Scores**; confirm At a glance averages and value-for-money mix update.

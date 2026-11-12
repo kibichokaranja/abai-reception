@@ -33,12 +33,12 @@ export type GuestFeedbackV2Input = {
   welcome_check_in: number | null;
   accommodation_comfort: number | null;
   conference_facilities: number | null;
-  wifi_quality: number;
+  wifi_quality: number | null;
   recreational_leisure: number | null;
   spa_experience: number | null;
-  cleanliness_upkeep: number;
-  food_taste_quality: number;
-  service_promptness: number;
+  cleanliness_upkeep: number | null;
+  food_taste_quality: number | null;
+  service_promptness: number | null;
   staff_friendliness: number;
   standout_staff_name: string | null;
   safety_security: number;
