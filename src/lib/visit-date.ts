@@ -11,6 +11,27 @@ export function todayVisitDate(now: Date = new Date()): string {
   }).format(now);
 }
 
+/**
+ * Shift a YYYY-MM-DD calendar date by `deltaDays` (UTC noon anchor).
+ * Use with Africa/Nairobi visit dates (no DST).
+ */
+export function addVisitDays(isoDate: string, deltaDays: number): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate.trim());
+  if (!match) return isoDate;
+  const date = new Date(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0),
+  );
+  date.setUTCDate(date.getUTCDate() + deltaDays);
+  return date.toISOString().slice(0, 10);
+}
+
+/** Inclusive last-N-days window ending today (Africa/Nairobi). */
+export function defaultReceptionVisitWindow(days = 7): { from: string; to: string } {
+  const to = todayVisitDate();
+  const from = addVisitDays(to, -(days - 1));
+  return { from, to };
+}
+
 /** Human-readable visit date for guest form / staff UI (e.g. 12 Nov 2026). */
 export function formatVisitDate(isoDate: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate.trim());

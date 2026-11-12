@@ -9,7 +9,15 @@ export default async function StaffPage() {
   return (
     <div className="min-h-dvh pb-16">
       <BrandHeader compact />
-      {authenticated ? <StaffFeedbackList /> : <StaffLoginForm />}
+      {authenticated ? (
+        <StaffFeedbackList />
+      ) : (
+        <StaffLoginForm
+          title="Owner login"
+          description="Enter the owner password to browse full guest feedback and analytics."
+          loginPath="/api/staff/login"
+        />
+      )}
     </div>
   );
 }

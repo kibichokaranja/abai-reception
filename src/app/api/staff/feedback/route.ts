@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { computeStaffAnalytics } from "@/lib/staff-analytics";
-import { isStaffAuthenticated } from "@/lib/staff-auth";
+import { getStaffSession } from "@/lib/staff-auth";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { describeServiceKeySource, getSupabaseUrl } from "@/lib/supabase-env";
 import { SURVEY_V2_SELECT_COLUMNS, type GuestFeedbackRow } from "@/lib/types";
+import { defaultReceptionVisitWindow } from "@/lib/visit-date";
 
 function safeSupabaseError(error: {
   message?: string;
@@ -20,15 +21,24 @@ function safeSupabaseError(error: {
   return parts.join(" · ") || "Unknown Supabase error";
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseIsoDate(value: string | null): string | null {
+  if (!value || !ISO_DATE.test(value)) return null;
+  return value;
+}
+
 export async function GET(request: Request) {
-  if (!(await isStaffAuthenticated())) {
+  const session = await getStaffSession();
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
-  const from = searchParams.get("from");
-  const to = searchParams.get("to");
-  const lowOnly = searchParams.get("low") === "1";
+  const fromParam = parseIsoDate(searchParams.get("from"));
+  const toParam = parseIsoDate(searchParams.get("to"));
+  const lowOnly =
+    session.role === "owner" && searchParams.get("low") === "1";
 
   try {
     const supabase = getSupabaseAdminClient();
@@ -38,12 +48,20 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false })
       .limit(500);
 
-    if (from) {
-      query = query.gte("created_at", `${from}T00:00:00.000Z`);
+    if (session.role === "reception") {
+      const defaults = defaultReceptionVisitWindow(7);
+      const from = fromParam ?? defaults.from;
+      const to = toParam ?? defaults.to;
+      query = query.gte("visit_date", from).lte("visit_date", to);
+    } else {
+      if (fromParam) {
+        query = query.gte("created_at", `${fromParam}T00:00:00.000Z`);
+      }
+      if (toParam) {
+        query = query.lte("created_at", `${toParam}T23:59:59.999Z`);
+      }
     }
-    if (to) {
-      query = query.lte("created_at", `${to}T23:59:59.999Z`);
-    }
+
     if (lowOnly) {
       query = query.or(
         [
@@ -115,9 +133,17 @@ export async function GET(request: Request) {
     }
 
     const feedback = (data ?? []) as unknown as GuestFeedbackRow[];
+    if (session.role === "reception") {
+      return NextResponse.json({
+        feedback,
+        role: "reception" as const,
+      });
+    }
+
     return NextResponse.json({
       feedback,
       analytics: computeStaffAnalytics(feedback),
+      role: "owner" as const,
     });
   } catch (err) {
     console.error(err);

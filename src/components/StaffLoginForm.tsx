@@ -3,7 +3,18 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function StaffLoginForm() {
+type Props = {
+  title?: string;
+  description?: string;
+  /** POST endpoint that accepts `{ password }` and sets the session cookie. */
+  loginPath?: string;
+};
+
+export function StaffLoginForm({
+  title = "Owner login",
+  description = "Enter the owner password to browse full guest feedback and analytics.",
+  loginPath = "/api/staff/login",
+}: Props) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +25,7 @@ export function StaffLoginForm() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/staff/login", {
+      const res = await fetch(loginPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
@@ -37,11 +48,9 @@ export function StaffLoginForm() {
       className="mx-auto mt-10 max-w-md space-y-4 rounded-2xl border border-abai-navy/10 bg-white p-6 shadow-sm"
     >
       <h1 className="font-display text-3xl font-semibold text-abai-navy">
-        Staff login
+        {title}
       </h1>
-      <p className="text-sm text-abai-muted">
-        Enter the shared front-desk password to browse guest feedback.
-      </p>
+      <p className="text-sm text-abai-muted">{description}</p>
       <label className="block space-y-2">
         <span className="text-sm font-semibold uppercase tracking-wide text-abai-navy">
           Password
