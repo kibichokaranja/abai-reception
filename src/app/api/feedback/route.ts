@@ -25,6 +25,11 @@ function isOptionalRating(value: unknown): value is number | null {
   return value === null || isRating(value);
 }
 
+/** Likelihood to recommend: 1 / 3 / 5 (Least / Somewhat / Highly likely). */
+function isRecommendScore(value: unknown): value is 1 | 3 | 5 {
+  return value === 1 || value === 3 || value === 5;
+}
+
 function isRecommend(value: unknown): value is RecommendChoice {
   return value === "yes" || value === "maybe" || value === "no";
 }
@@ -166,11 +171,20 @@ async function handleV2(body: Record<string, unknown>) {
   if (
     !isRating(body.staff_friendliness) ||
     !isRating(body.safety_security) ||
-    !isRating(body.overall_experience) ||
-    !isRating(body.recommend_score)
+    !isRating(body.overall_experience)
   ) {
     return NextResponse.json(
       { error: "Required ratings must be integers 1–5" },
+      { status: 400 },
+    );
+  }
+
+  if (!isRecommendScore(body.recommend_score)) {
+    return NextResponse.json(
+      {
+        error:
+          "Likelihood to recommend must be 1 (Least likely), 3 (Somewhat likely), or 5 (Highly likely)",
+      },
       { status: 400 },
     );
   }

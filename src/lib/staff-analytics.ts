@@ -1,7 +1,10 @@
-import type {
-  GuestFeedbackRow,
-  RecommendChoice,
-  ValueForMoneyChoice,
+import {
+  RATING_LABELS,
+  RECOMMEND_SCORE_LABELS,
+  type GuestFeedbackRow,
+  type RecommendChoice,
+  type RecommendScore,
+  type ValueForMoneyChoice,
 } from "@/lib/types";
 
 export type CategoryKey =
@@ -72,7 +75,7 @@ const V2_CATEGORIES: { key: CategoryKey; label: string }[] = [
   { key: "staff_friendliness", label: "Staff" },
   { key: "safety_security", label: "Safety" },
   { key: "overall_experience", label: "Overall" },
-  { key: "recommend_score", label: "Recommend (1–5)" },
+  { key: "recommend_score", label: "Recommend (1/3/5)" },
 ];
 
 const LEGACY_CATEGORIES: { key: CategoryKey; label: string }[] = [
@@ -100,7 +103,14 @@ export function overallForRow(row: GuestFeedbackRow): number | null {
 }
 
 export function recommendLabelForRow(row: GuestFeedbackRow): string {
-  if (row.recommend_score != null) return String(row.recommend_score);
+  if (row.recommend_score != null) {
+    const mapped =
+      RECOMMEND_SCORE_LABELS[row.recommend_score as RecommendScore];
+    if (mapped) return mapped;
+    // Pre–3-point rows may still hold 2 or 4 from Poor–Excellent.
+    const legacy = RATING_LABELS.find((r) => r.value === row.recommend_score);
+    return legacy?.label ?? String(row.recommend_score);
+  }
   if (row.recommend) return row.recommend;
   return "—";
 }

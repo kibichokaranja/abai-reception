@@ -106,8 +106,10 @@ Required taps before ratings: **Is this your first visit?** (Yes / No), **Purpos
 | 13 | Safety / security | 1–5 |
 | 14 | Overall experience | 1–5 |
 | 15 | Value for money | Yes / No / Maybe |
-| 16 | Likelihood to recommend | 1–5 |
+| 16 | Likelihood to recommend | Least likely / Somewhat likely / Highly likely |
 | 17 | Other comments / suggestions | Optional text (max 1000) |
+
+**Recommend score mapping:** guest taps map to `recommend_score` **1 / 3 / 5** (Least / Somewhat / Highly likely) on the existing 1–5 DB column so averages stay on the same scale as other ratings. Staff list shows those labels (not raw numbers).
 
 Legacy columns remain in the DB for older rows; staff UI still reads them.
 
