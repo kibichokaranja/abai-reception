@@ -228,7 +228,7 @@ export function GuestFeedbackForm() {
     >
       <div className="animate-fade-up text-center">
         <h1 className="font-display text-3xl font-semibold text-abai-navy sm:text-4xl">
-          How was your stay?
+          Guest feedback form
         </h1>
         <p className="mt-2 text-base text-abai-muted sm:text-lg">
           Tap to rate each item. Use N/A where it does not apply. Name, phone,
