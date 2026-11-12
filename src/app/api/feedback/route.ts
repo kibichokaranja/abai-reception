@@ -89,11 +89,11 @@ function parseIdentity(body: Record<string, unknown>) {
   const commentRaw = typeof body.comment === "string" ? body.comment.trim() : "";
   const comment = commentRaw.length > 0 ? commentRaw : null;
 
-  if (!guest_name || guest_name.length > 120) {
-    return { error: "Name is required (max 120 chars)" } as const;
+  if (guest_name.length > 120) {
+    return { error: "Name must be 120 characters or fewer" } as const;
   }
-  if (!phone || phone.length > 40) {
-    return { error: "Phone is required (max 40 chars)" } as const;
+  if (phone.length > 40) {
+    return { error: "Phone must be 40 characters or fewer" } as const;
   }
   if (comment != null && comment.length > COMMENT_MAX_LENGTH) {
     return {

@@ -123,8 +123,16 @@ function FeedbackRow({ row }: { row: GuestFeedbackRow }) {
         <td className="whitespace-nowrap px-3 py-3 text-abai-muted">
           {formatDate(row.created_at)}
         </td>
-        <td className="px-3 py-3 font-medium text-abai-ink">{row.guest_name}</td>
-        <td className="whitespace-nowrap px-3 py-3">{row.phone}</td>
+        <td className="px-3 py-3 font-medium text-abai-ink">
+          {row.guest_name.trim() ? row.guest_name : (
+            <span className="font-normal text-abai-muted">—</span>
+          )}
+        </td>
+        <td className="whitespace-nowrap px-3 py-3">
+          {row.phone.trim() ? row.phone : (
+            <span className="text-abai-muted">—</span>
+          )}
+        </td>
         <td className={`px-3 py-3 ${scoreTone(overall)}`}>
           {formatScore(overall, "—")}
           {!v2 ? (

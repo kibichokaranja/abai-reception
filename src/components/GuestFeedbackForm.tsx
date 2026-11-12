@@ -94,8 +94,12 @@ export function GuestFeedbackForm() {
     event.preventDefault();
     setError(null);
 
-    if (!form.guest_name.trim() || !form.phone.trim()) {
-      setError("Please enter your name and phone number.");
+    if (form.guest_name.trim().length > 120) {
+      setError("Name must be 120 characters or fewer.");
+      return;
+    }
+    if (form.phone.trim().length > 40) {
+      setError("Phone must be 40 characters or fewer.");
       return;
     }
 
@@ -117,7 +121,7 @@ export function GuestFeedbackForm() {
       form.recommend_score == null
     ) {
       setError(
-        "Please answer every rating with a tap (standout name and comments are optional).",
+        "Please answer every rating with a tap (name, phone, standout name, and comments are optional).",
       );
       return;
     }
@@ -206,21 +210,27 @@ export function GuestFeedbackForm() {
           How was your stay?
         </h1>
         <p className="mt-2 text-base text-abai-muted sm:text-lg">
-          Tap to rate each item. Use N/A where it does not apply. Two written
-          answers are optional.
+          Tap to rate each item. Use N/A where it does not apply. Name, phone,
+          and written answers are optional.
         </p>
       </div>
+
+      <p className="animate-fade-up text-center text-sm leading-relaxed text-abai-muted">
+        By submitting this form, you allow Abai Lodges &amp; Spa to collect your
+        guest information and review for service and quality improvement.
+      </p>
 
       <div className="animate-fade-up grid gap-4 sm:grid-cols-2">
         <label className="block space-y-2">
           <span className="text-sm font-semibold uppercase tracking-wide text-abai-navy">
             Name
           </span>
+          <span className="block text-xs text-abai-muted">Optional</span>
           <input
             type="text"
             name="guest_name"
             autoComplete="name"
-            required
+            maxLength={120}
             value={form.guest_name}
             onChange={(e) => update("guest_name", e.target.value)}
             className="min-h-14 w-full rounded-lg border-2 border-abai-navy/15 bg-white px-4 text-lg text-abai-ink outline-none focus:border-abai-gold"
@@ -231,11 +241,12 @@ export function GuestFeedbackForm() {
           <span className="text-sm font-semibold uppercase tracking-wide text-abai-navy">
             Phone
           </span>
+          <span className="block text-xs text-abai-muted">Optional</span>
           <input
             type="tel"
             name="phone"
             autoComplete="tel"
-            required
+            maxLength={40}
             value={form.phone}
             onChange={(e) => update("phone", e.target.value)}
             className="min-h-14 w-full rounded-lg border-2 border-abai-navy/15 bg-white px-4 text-lg text-abai-ink outline-none focus:border-abai-gold"
