@@ -5,8 +5,8 @@ create extension if not exists "pgcrypto";
 
 create table if not exists public.guest_feedback (
   id uuid primary key default gen_random_uuid(),
-  guest_name text not null check (char_length(guest_name) between 1 and 120),
-  phone text not null check (char_length(phone) between 1 and 40),
+  guest_name text not null check (char_length(guest_name) <= 120),
+  phone text not null check (char_length(phone) <= 40),
   overall_stay smallint not null check (overall_stay between 1 and 5),
   check_in smallint not null check (check_in between 1 and 5),
   room_cleanliness smallint not null check (room_cleanliness between 1 and 5),

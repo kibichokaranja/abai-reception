@@ -2,7 +2,7 @@
 
 Front-desk / QR guest feedback for **Abai Lodges & Spa** (“Exclusivity Redefined”).
 
-- Guest kiosk form at `/` — name + phone, then **survey v2** (17 questions)
+- Guest kiosk form at `/` — optional name + phone, then **survey v2** (17 questions); consent disclaimer above identity fields
 - Staff browse page at `/staff` — password gate, filters, **At a glance** analytics, expandable score detail
 - Footer brand QR: “Scan to open on your phone”
 - Supabase Postgres + RLS; Vercel-ready Next.js App Router + Tailwind
@@ -38,6 +38,7 @@ Open [http://localhost:3000](http://localhost:3000) for the guest form and [http
 | [`20260323_guest_feedback_service_role_grants.sql`](supabase/migrations/20260323_guest_feedback_service_role_grants.sql) | `GRANT` for staff service role |
 | [`20260324_guest_feedback_staff_comment.sql`](supabase/migrations/20260324_guest_feedback_staff_comment.sql) | Legacy staff_experience + comment |
 | [`20260325_guest_feedback_survey_v2.sql`](supabase/migrations/20260325_guest_feedback_survey_v2.sql) | **Survey v2 columns** (required for current form) |
+| [`20260326_guest_feedback_optional_identity.sql`](supabase/migrations/20260326_guest_feedback_optional_identity.sql) | Allow empty name/phone on submit |
 
 ### RLS summary
 
