@@ -72,7 +72,7 @@ const RATING_WITH_NA = [
     value: r.value as RatingOrNa,
     label: r.label,
   })),
-  { value: "na" as const, label: "not applicable" },
+  { value: "na" as const, label: "Not applicable" },
 ];
 
 function toNullableScore(value: RatingOrNa): number | null {
