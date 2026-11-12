@@ -9,8 +9,23 @@ import {
   recommendLabelForRow,
   type StaffAnalytics,
 } from "@/lib/staff-analytics";
-import type { GuestFeedbackRow } from "@/lib/types";
+import {
+  PURPOSE_OF_VISIT_LABELS,
+  type GuestFeedbackRow,
+  type PurposeOfVisit,
+} from "@/lib/types";
 import { formatVisitDate } from "@/lib/visit-date";
+
+function firstVisitLabel(value: boolean | null): string {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "—";
+}
+
+function purposeLabel(value: PurposeOfVisit | null): string {
+  if (!value) return "—";
+  return PURPOSE_OF_VISIT_LABELS[value] ?? value;
+}
 
 function formatDate(iso: string) {
   try {
@@ -152,6 +167,12 @@ function FeedbackRow({ row }: { row: GuestFeedbackRow }) {
             <span className="text-abai-muted">—</span>
           )}
         </td>
+        <td className="whitespace-nowrap px-3 py-3">
+          {firstVisitLabel(row.first_visit)}
+        </td>
+        <td className="whitespace-nowrap px-3 py-3">
+          {purposeLabel(row.purpose_of_visit)}
+        </td>
         <td className={`px-3 py-3 ${scoreTone(overall)}`}>
           {formatScore(overall, "—")}
           {!v2 ? (
@@ -181,7 +202,7 @@ function FeedbackRow({ row }: { row: GuestFeedbackRow }) {
       </tr>
       {open ? (
         <tr className="border-t border-abai-navy/5 bg-white/70">
-          <td colSpan={10} className="px-3 py-4">
+          <td colSpan={12} className="px-3 py-4">
             <DetailScores row={row} />
           </td>
         </tr>
@@ -336,6 +357,8 @@ export function StaffFeedbackList() {
               <th className="px-3 py-3 font-medium">Visit date</th>
               <th className="px-3 py-3 font-medium">Guest</th>
               <th className="px-3 py-3 font-medium">Phone</th>
+              <th className="px-3 py-3 font-medium">First visit</th>
+              <th className="px-3 py-3 font-medium">Purpose</th>
               <th className="px-3 py-3 font-medium">Overall</th>
               <th className="px-3 py-3 font-medium">Recommend</th>
               <th className="px-3 py-3 font-medium">Value</th>
@@ -347,7 +370,7 @@ export function StaffFeedbackList() {
           <tbody>
             {rows.length === 0 && !loading ? (
               <tr>
-                <td colSpan={10} className="px-3 py-8 text-center text-abai-muted">
+                <td colSpan={12} className="px-3 py-8 text-center text-abai-muted">
                   No feedback matches these filters.
                 </td>
               </tr>

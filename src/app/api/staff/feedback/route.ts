@@ -80,17 +80,24 @@ export async function GET(request: Request) {
         /permission denied|row-level security/i.test(error.message ?? "")
           ? " Run supabase/migrations/20260323_guest_feedback_service_role_grants.sql (GRANT to service_role)."
           : "";
-      const visitDateHint = /visit_date/i.test(error.message ?? "")
-        ? " Run supabase/migrations/20260327_guest_feedback_visit_date.sql in the Supabase SQL Editor, then Redeploy."
+      const firstVisitPurposeHint = /first_visit|purpose_of_visit/i.test(
+        error.message ?? "",
+      )
+        ? " Run supabase/migrations/20260328_guest_feedback_first_visit_purpose.sql in the Supabase SQL Editor, then Redeploy."
         : "";
+      const visitDateHint =
+        !firstVisitPurposeHint && /visit_date/i.test(error.message ?? "")
+          ? " Run supabase/migrations/20260327_guest_feedback_visit_date.sql in the Supabase SQL Editor, then Redeploy."
+          : "";
       const missingTableHint =
+        !firstVisitPurposeHint &&
         !visitDateHint &&
         (error.code === "42P01" || /does not exist/i.test(error.message ?? ""))
           ? " Run supabase/migrations/20260322_guest_feedback.sql in the Supabase SQL Editor."
           : "";
       return NextResponse.json(
         {
-          error: `Could not load feedback from Supabase: ${detail}.${grantHint}${visitDateHint}${missingTableHint}`,
+          error: `Could not load feedback from Supabase: ${detail}.${grantHint}${firstVisitPurposeHint}${visitDateHint}${missingTableHint}`,
           debug: {
             urlHost: (() => {
               try {

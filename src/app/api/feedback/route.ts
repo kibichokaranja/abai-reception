@@ -3,13 +3,19 @@ import { getSupabaseAnonClient } from "@/lib/supabase";
 import { describeAnonKeySource, getSupabaseUrl } from "@/lib/supabase-env";
 import {
   COMMENT_MAX_LENGTH,
+  PURPOSE_OF_VISIT_OPTIONS,
   STANDOUT_NAME_MAX_LENGTH,
   type GuestFeedbackInput,
   type GuestFeedbackV2Input,
+  type PurposeOfVisit,
   type RecommendChoice,
   type ValueForMoneyChoice,
 } from "@/lib/types";
 import { todayVisitDate } from "@/lib/visit-date";
+
+const PURPOSE_VALUES = new Set(
+  PURPOSE_OF_VISIT_OPTIONS.map((option) => option.value),
+);
 
 function isRating(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 5;
@@ -27,6 +33,10 @@ function isValueForMoney(value: unknown): value is ValueForMoneyChoice {
   return value === "yes" || value === "maybe" || value === "no";
 }
 
+function isPurposeOfVisit(value: unknown): value is PurposeOfVisit {
+  return typeof value === "string" && PURPOSE_VALUES.has(value as PurposeOfVisit);
+}
+
 function debugPayload() {
   return {
     urlHost: (() => {
@@ -41,6 +51,9 @@ function debugPayload() {
 }
 
 function migrationHint(message: string | undefined, code: string | undefined): string {
+  if (/first_visit|purpose_of_visit/i.test(message ?? "")) {
+    return " Run supabase/migrations/20260328_guest_feedback_first_visit_purpose.sql in the Supabase SQL Editor, then Redeploy.";
+  }
   if (/visit_date/i.test(message ?? "")) {
     return " Run supabase/migrations/20260327_guest_feedback_visit_date.sql in the Supabase SQL Editor, then Redeploy.";
   }
@@ -169,6 +182,23 @@ async function handleV2(body: Record<string, unknown>) {
     );
   }
 
+  if (typeof body.first_visit !== "boolean") {
+    return NextResponse.json(
+      { error: "First visit must be true or false" },
+      { status: 400 },
+    );
+  }
+
+  if (!isPurposeOfVisit(body.purpose_of_visit)) {
+    return NextResponse.json(
+      {
+        error:
+          "Purpose of visit must be accommodation, conferencing_meeting, spa, restaurant, other_services, or recreation",
+      },
+      { status: 400 },
+    );
+  }
+
   let standout_staff_name: string | null = null;
   if (typeof body.standout_staff_name === "string") {
     const trimmed = body.standout_staff_name.trim();
@@ -194,6 +224,8 @@ async function handleV2(body: Record<string, unknown>) {
     guest_name: identity.guest_name,
     phone: identity.phone,
     visit_date: todayVisitDate(),
+    first_visit: body.first_visit,
+    purpose_of_visit: body.purpose_of_visit,
     reservation_ease: optionalValues.reservation_ease,
     welcome_check_in: optionalValues.welcome_check_in,
     accommodation_comfort: optionalValues.accommodation_comfort,
