@@ -40,6 +40,7 @@ Open [http://localhost:3000](http://localhost:3000) for the guest form and [http
 | [`20260325_guest_feedback_survey_v2.sql`](supabase/migrations/20260325_guest_feedback_survey_v2.sql) | **Survey v2 columns** (required for current form) |
 | [`20260326_guest_feedback_optional_identity.sql`](supabase/migrations/20260326_guest_feedback_optional_identity.sql) | Allow empty name/phone on submit |
 | [`20260327_guest_feedback_visit_date.sql`](supabase/migrations/20260327_guest_feedback_visit_date.sql) | **`visit_date`** (Africa/Nairobi; read-only on guest form) |
+| [`20260328_guest_feedback_first_visit_purpose.sql`](supabase/migrations/20260328_guest_feedback_first_visit_purpose.sql) | **`first_visit`** + **`purpose_of_visit`** (required taps) |
 
 ### RLS summary
 
@@ -84,7 +85,9 @@ Repo includes `vercel.json` with `"framework": "nextjs"`.
 
 ## Guest questions (survey v2)
 
-Identity: **Name**, **Phone** (required).
+Identity: **Name**, **Phone** (optional), **Date of visit** (read-only today).
+
+Required taps before ratings: **Is this your first visit?** (Yes / No), **Purpose of visit** (Accommodation, Conferencing/meeting, Spa, Restaurant, Other services, Recreation).
 
 | # | Question | Control |
 |---|----------|---------|
@@ -113,7 +116,7 @@ Legacy columns remain in the DB for older rows; staff UI still reads them.
 1. Open production `/` — 17 questions + footer QR visible.
 2. Submit with N/A on at least one optional rating, fill standout name + comment, complete required taps.
 3. Confirm thank-you, then auto-reset.
-4. Open `/staff`, sign in, confirm the new row (Overall / Recommend / Value / Standout / Comment).
+4. Open `/staff`, sign in, confirm the new row (First visit / Purpose / Overall / Recommend / Value / Standout / Comment).
 5. Expand **Scores**; confirm At a glance averages and value-for-money mix update.
 6. Legacy rows (if any) still list with a legacy marker.
 

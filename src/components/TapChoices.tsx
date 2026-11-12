@@ -10,7 +10,7 @@ type TapChoicesProps<T extends string | number> = {
   options: readonly Choice<T>[] | Choice<T>[];
   value: T | null;
   onChange: (value: T) => void;
-  columns?: 3 | 5 | 6;
+  columns?: 2 | 3 | 5 | 6;
 };
 
 export function TapChoices<T extends string | number>({
@@ -21,11 +21,13 @@ export function TapChoices<T extends string | number>({
   columns = 5,
 }: TapChoicesProps<T>) {
   const gridClass =
-    columns === 3
-      ? "grid-cols-3"
-      : columns === 6
-        ? "grid-cols-3 sm:grid-cols-6"
-        : "grid-cols-5";
+    columns === 2
+      ? "grid-cols-2"
+      : columns === 3
+        ? "grid-cols-3"
+        : columns === 6
+          ? "grid-cols-3 sm:grid-cols-6"
+          : "grid-cols-5";
 
   return (
     <fieldset className="animate-fade-up space-y-3">

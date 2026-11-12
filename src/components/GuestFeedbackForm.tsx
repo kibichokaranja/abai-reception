@@ -4,9 +4,13 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { TapChoices } from "@/components/TapChoices";
 import {
   COMMENT_MAX_LENGTH,
+  FIRST_VISIT_OPTIONS,
+  PURPOSE_OF_VISIT_OPTIONS,
   RATING_LABELS,
   STANDOUT_NAME_MAX_LENGTH,
   VALUE_FOR_MONEY_OPTIONS,
+  type FirstVisitChoice,
+  type PurposeOfVisit,
   type ValueForMoneyChoice,
 } from "@/lib/types";
 import { formatVisitDate, todayVisitDate } from "@/lib/visit-date";
@@ -18,6 +22,8 @@ type RatingOrNa = number | "na";
 type FormState = {
   guest_name: string;
   phone: string;
+  first_visit: FirstVisitChoice | null;
+  purpose_of_visit: PurposeOfVisit | null;
   reservation_ease: RatingOrNa | null;
   welcome_check_in: RatingOrNa | null;
   accommodation_comfort: RatingOrNa | null;
@@ -40,6 +46,8 @@ type FormState = {
 const emptyForm: FormState = {
   guest_name: "",
   phone: "",
+  first_visit: null,
+  purpose_of_visit: null,
   reservation_ease: null,
   welcome_check_in: null,
   accommodation_comfort: null,
@@ -109,6 +117,11 @@ export function GuestFeedbackForm() {
       return;
     }
 
+    if (form.first_visit == null || form.purpose_of_visit == null) {
+      setError("Please tap first visit and purpose of visit.");
+      return;
+    }
+
     if (
       form.reservation_ease == null ||
       form.welcome_check_in == null ||
@@ -155,6 +168,8 @@ export function GuestFeedbackForm() {
           survey_version: 2,
           guest_name: form.guest_name.trim(),
           phone: form.phone.trim(),
+          first_visit: form.first_visit === "yes",
+          purpose_of_visit: form.purpose_of_visit,
           reservation_ease: toNullableScore(form.reservation_ease),
           welcome_check_in: toNullableScore(form.welcome_check_in),
           accommodation_comfort: toNullableScore(form.accommodation_comfort),
@@ -272,6 +287,21 @@ export function GuestFeedbackForm() {
           </div>
         </div>
       </div>
+
+      <TapChoices
+        label="Is this your first visit?"
+        options={FIRST_VISIT_OPTIONS}
+        value={form.first_visit}
+        onChange={(v) => update("first_visit", v)}
+        columns={2}
+      />
+      <TapChoices
+        label="Purpose of visit"
+        options={PURPOSE_OF_VISIT_OPTIONS}
+        value={form.purpose_of_visit}
+        onChange={(v) => update("purpose_of_visit", v)}
+        columns={3}
+      />
 
       <TapChoices
         label="Reservation ease/convenience"

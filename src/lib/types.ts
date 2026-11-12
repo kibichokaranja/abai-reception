@@ -1,5 +1,13 @@
 export type RecommendChoice = "yes" | "maybe" | "no";
 export type ValueForMoneyChoice = "yes" | "no" | "maybe";
+export type FirstVisitChoice = "yes" | "no";
+export type PurposeOfVisit =
+  | "accommodation"
+  | "conferencing_meeting"
+  | "spa"
+  | "restaurant"
+  | "other_services"
+  | "recreation";
 
 /** Legacy guest form payload (pre survey v2). */
 export type GuestFeedbackInput = {
@@ -15,10 +23,12 @@ export type GuestFeedbackInput = {
   recommend: RecommendChoice;
 };
 
-/** Survey v2 — 17 questions (+ name/phone). N/A scores are null. */
+/** Survey v2 — 17 questions (+ name/phone + first visit / purpose). N/A scores are null. */
 export type GuestFeedbackV2Input = {
   guest_name: string;
   phone: string;
+  first_visit: boolean;
+  purpose_of_visit: PurposeOfVisit;
   reservation_ease: number | null;
   welcome_check_in: number | null;
   accommodation_comfort: number | null;
@@ -46,6 +56,8 @@ export type GuestFeedbackRow = {
   visit_date: string;
   guest_name: string;
   phone: string;
+  first_visit: boolean | null;
+  purpose_of_visit: PurposeOfVisit | null;
   // Legacy
   overall_stay: number | null;
   check_in: number | null;
@@ -97,6 +109,35 @@ export const VALUE_FOR_MONEY_OPTIONS: {
   { value: "maybe", label: "Maybe" },
 ];
 
+export const FIRST_VISIT_OPTIONS: {
+  value: FirstVisitChoice;
+  label: string;
+}[] = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+];
+
+export const PURPOSE_OF_VISIT_OPTIONS: {
+  value: PurposeOfVisit;
+  label: string;
+}[] = [
+  { value: "accommodation", label: "Accommodation" },
+  { value: "conferencing_meeting", label: "Conferencing/meeting" },
+  { value: "spa", label: "Spa" },
+  { value: "restaurant", label: "Restaurant" },
+  { value: "other_services", label: "Other services" },
+  { value: "recreation", label: "Recreation" },
+];
+
+export const PURPOSE_OF_VISIT_LABELS: Record<PurposeOfVisit, string> = {
+  accommodation: "Accommodation",
+  conferencing_meeting: "Conferencing/meeting",
+  spa: "Spa",
+  restaurant: "Restaurant",
+  other_services: "Other services",
+  recreation: "Recreation",
+};
+
 export const COMMENT_MAX_LENGTH = 1000;
 export const STANDOUT_NAME_MAX_LENGTH = 120;
 
@@ -104,6 +145,8 @@ export const SURVEY_V2_SELECT_COLUMNS = [
   "id",
   "guest_name",
   "phone",
+  "first_visit",
+  "purpose_of_visit",
   "overall_stay",
   "check_in",
   "room_cleanliness",
