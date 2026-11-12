@@ -9,6 +9,7 @@ import {
   type RecommendChoice,
   type ValueForMoneyChoice,
 } from "@/lib/types";
+import { todayVisitDate } from "@/lib/visit-date";
 
 function isRating(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 5;
@@ -40,6 +41,9 @@ function debugPayload() {
 }
 
 function migrationHint(message: string | undefined, code: string | undefined): string {
+  if (/visit_date/i.test(message ?? "")) {
+    return " Run supabase/migrations/20260327_guest_feedback_visit_date.sql in the Supabase SQL Editor, then Redeploy.";
+  }
   if (
     code === "PGRST204" ||
     /recommend_score|wifi_quality|value_for_money|standout_staff_name|overall_experience/i.test(
@@ -185,9 +189,11 @@ async function handleV2(body: Record<string, unknown>) {
   }
 
   // New rows: write v2 columns only (do not write legacy recommend yes/maybe/no).
+  // visit_date is always stamped server-side (ignore any client value).
   return insertRow({
     guest_name: identity.guest_name,
     phone: identity.phone,
+    visit_date: todayVisitDate(),
     reservation_ease: optionalValues.reservation_ease,
     welcome_check_in: optionalValues.welcome_check_in,
     accommodation_comfort: optionalValues.accommodation_comfort,
@@ -236,6 +242,7 @@ async function handleLegacy(body: Partial<GuestFeedbackInput> & Record<string, u
   return insertRow({
     guest_name: identity.guest_name,
     phone: identity.phone,
+    visit_date: todayVisitDate(),
     overall_stay: body.overall_stay,
     check_in: body.check_in,
     room_cleanliness: body.room_cleanliness,

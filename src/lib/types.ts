@@ -42,6 +42,8 @@ export type GuestFeedbackV2Input = {
 export type GuestFeedbackRow = {
   id: string;
   created_at: string;
+  /** Calendar date of visit (YYYY-MM-DD), Africa/Nairobi. */
+  visit_date: string;
   guest_name: string;
   phone: string;
   // Legacy
@@ -126,5 +128,6 @@ export const SURVEY_V2_SELECT_COLUMNS = [
   "overall_experience",
   "value_for_money",
   "recommend_score",
+  "visit_date",
   "created_at",
 ].join(", ");

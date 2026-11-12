@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { TapChoices } from "@/components/TapChoices";
 import {
   COMMENT_MAX_LENGTH,
@@ -9,6 +9,7 @@ import {
   VALUE_FOR_MONEY_OPTIONS,
   type ValueForMoneyChoice,
 } from "@/lib/types";
+import { formatVisitDate, todayVisitDate } from "@/lib/visit-date";
 
 const RESET_MS = 5000;
 
@@ -75,6 +76,11 @@ export function GuestFeedbackForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [thanks, setThanks] = useState(false);
+  // Display only — visit_date is stamped server-side on submit.
+  const visitDateDisplay = useMemo(
+    () => formatVisitDate(todayVisitDate()),
+    [],
+  );
 
   useEffect(() => {
     if (!thanks) return;
@@ -220,7 +226,7 @@ export function GuestFeedbackForm() {
         guest information and review for service and quality improvement.
       </p>
 
-      <div className="animate-fade-up grid gap-4 sm:grid-cols-2">
+      <div className="animate-fade-up grid gap-4 sm:grid-cols-3">
         <label className="block space-y-2">
           <span className="text-sm font-semibold uppercase tracking-wide text-abai-navy">
             Name
@@ -253,6 +259,18 @@ export function GuestFeedbackForm() {
             placeholder="07xx xxx xxx"
           />
         </label>
+        <div className="block space-y-2">
+          <span className="text-sm font-semibold uppercase tracking-wide text-abai-navy">
+            Date of visit
+          </span>
+          <span className="block text-xs text-abai-muted">Today</span>
+          <div
+            className="flex min-h-14 w-full items-center rounded-lg border-2 border-abai-navy/10 bg-abai-navy/[0.03] px-4 text-lg text-abai-ink"
+            aria-readonly="true"
+          >
+            {visitDateDisplay}
+          </div>
+        </div>
       </div>
 
       <TapChoices
