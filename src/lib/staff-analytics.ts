@@ -86,7 +86,8 @@ const LEGACY_CATEGORIES: { key: CategoryKey; label: string }[] = [
   { key: "staff_experience", label: "Staff (legacy)" },
 ];
 
-const WEAK_AVG_MAX = 3;
+/** Needs-attention / weak-area threshold (plan default). */
+export const WEAK_AVG_MAX = 2.5;
 
 export function isSurveyV2Row(row: GuestFeedbackRow): boolean {
   return (
