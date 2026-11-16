@@ -6,16 +6,17 @@ import { useRouter } from "next/navigation";
 type Props = {
   title?: string;
   description?: string;
-  /** POST endpoint that accepts `{ password }` and sets the session cookie. */
+  /** POST endpoint that accepts `{ username?, password }` and sets the session cookie. */
   loginPath?: string;
 };
 
 export function StaffLoginForm({
   title = "Owner login",
-  description = "Enter the owner password to browse full guest feedback and analytics.",
+  description = "Enter the owner password to browse full guest feedback and analytics. After users are created, use username + password.",
   loginPath = "/api/staff/login",
 }: Props) {
   const router = useRouter();
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -28,7 +29,10 @@ export function StaffLoginForm({
       const res = await fetch(loginPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({
+          username: username.trim() || undefined,
+          password,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
@@ -51,6 +55,22 @@ export function StaffLoginForm({
         {title}
       </h1>
       <p className="text-sm text-abai-muted">{description}</p>
+      <label className="block space-y-2">
+        <span className="text-sm font-semibold uppercase tracking-wide text-abai-navy">
+          Username
+        </span>
+        <span className="block text-xs text-abai-muted">
+          Optional for bootstrap env password; required once users exist
+        </span>
+        <input
+          type="text"
+          name="username"
+          autoComplete="username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="min-h-12 w-full rounded-lg border-2 border-abai-navy/15 px-3 outline-none focus:border-abai-gold"
+        />
+      </label>
       <label className="block space-y-2">
         <span className="text-sm font-semibold uppercase tracking-wide text-abai-navy">
           Password

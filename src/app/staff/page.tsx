@@ -10,11 +10,15 @@ export default async function StaffPage() {
     <div className="min-h-dvh pb-16">
       <BrandHeader compact />
       {authenticated ? (
-        <StaffFeedbackList />
+        <StaffFeedbackList
+          title="Guest Feedback"
+          canExport
+          canManageUsers
+        />
       ) : (
         <StaffLoginForm
           title="Owner login"
-          description="Enter the owner password to browse full guest feedback and analytics."
+          description="Enter the owner password (or username + password after users are created) for full feedback, analytics, export, and user management."
           loginPath="/api/staff/login"
         />
       )}
