@@ -6,7 +6,6 @@ import {
   PURPOSE_OF_VISIT_OPTIONS,
   STANDOUT_NAME_MAX_LENGTH,
   type GuestFeedbackInput,
-  type GuestFeedbackV2Input,
   type PurposeOfVisit,
   type RecommendChoice,
   type ValueForMoneyChoice,
@@ -22,12 +21,7 @@ function isRating(value: unknown): value is number {
 }
 
 function isOptionalRating(value: unknown): value is number | null {
-  return value === null || isRating(value);
-}
-
-/** Likelihood to recommend: 1–5 (Least → Highly likely). */
-function isRecommendScore(value: unknown): value is number {
-  return isRating(value);
+  return value === null || value === undefined || isRating(value);
 }
 
 function isRecommend(value: unknown): value is RecommendChoice {
@@ -40,6 +34,44 @@ function isValueForMoney(value: unknown): value is ValueForMoneyChoice {
 
 function isPurposeOfVisit(value: unknown): value is PurposeOfVisit {
   return typeof value === "string" && PURPOSE_VALUES.has(value as PurposeOfVisit);
+}
+
+function parsePurposeServices(
+  body: Record<string, unknown>,
+): { ok: true; services: PurposeOfVisit[] | null } | { ok: false; error: string } {
+  const raw = body.purpose_of_visit_services;
+  if (raw === undefined || raw === null) {
+    // Legacy single purpose still accepted.
+    if (body.purpose_of_visit === undefined || body.purpose_of_visit === null) {
+      return { ok: true, services: null };
+    }
+    if (!isPurposeOfVisit(body.purpose_of_visit)) {
+      return {
+        ok: false,
+        error:
+          "Services must be accommodation, conferencing_meeting, spa, restaurant, other_services, or recreation",
+      };
+    }
+    return { ok: true, services: [body.purpose_of_visit] };
+  }
+  if (!Array.isArray(raw)) {
+    return { ok: false, error: "Services must be an array of service keys" };
+  }
+  if (raw.length === 0) {
+    return { ok: true, services: null };
+  }
+  const services: PurposeOfVisit[] = [];
+  for (const item of raw) {
+    if (!isPurposeOfVisit(item)) {
+      return {
+        ok: false,
+        error:
+          "Each service must be accommodation, conferencing_meeting, spa, restaurant, other_services, or recreation",
+      };
+    }
+    if (!services.includes(item)) services.push(item);
+  }
+  return { ok: true, services };
 }
 
 function debugPayload() {
@@ -56,6 +88,9 @@ function debugPayload() {
 }
 
 function migrationHint(message: string | undefined, code: string | undefined): string {
+  if (/purpose_of_visit_services/i.test(message ?? "")) {
+    return " Run supabase/migrations/20260329_purpose_services_array.sql in the Supabase SQL Editor, then Redeploy.";
+  }
   if (/first_visit|purpose_of_visit/i.test(message ?? "")) {
     return " Run supabase/migrations/20260328_guest_feedback_first_visit_purpose.sql in the Supabase SQL Editor, then Redeploy.";
   }
@@ -82,7 +117,9 @@ function isSurveyV2Body(body: Record<string, unknown>): boolean {
     body.recommend_score !== undefined ||
     body.wifi_quality !== undefined ||
     body.overall_experience !== undefined ||
-    body.value_for_money !== undefined
+    body.value_for_money !== undefined ||
+    body.purpose_of_visit_services !== undefined ||
+    body.first_visit !== undefined
   );
 }
 
@@ -125,19 +162,19 @@ function parseIdentity(body: Record<string, unknown>) {
   return { guest_name, phone, comment } as const;
 }
 
-function parseOptionalRating(
+function parseOptionalRatingField(
   body: Record<string, unknown>,
   key: string,
   label: string,
 ): { ok: true; value: number | null } | { ok: false; error: string } {
   const value = body[key];
-  if (value === undefined) {
-    return { ok: false, error: `${label} is required (1–5 or null for N/A)` };
+  if (value === undefined || value === null) {
+    return { ok: true, value: null };
   }
   if (!isOptionalRating(value)) {
     return { ok: false, error: `${label} must be 1–5 or null (N/A)` };
   }
-  return { ok: true, value };
+  return { ok: true, value: value as number | null };
 }
 
 async function handleV2(body: Record<string, unknown>) {
@@ -146,73 +183,59 @@ async function handleV2(body: Record<string, unknown>) {
     return NextResponse.json({ error: identity.error }, { status: 400 });
   }
 
-  // Q1–4, Q6–7 allow null (not applicable). Q5 / Q8–10 are required 1–5.
-  const optionalKeys: { key: keyof GuestFeedbackV2Input; label: string }[] = [
+  const ratingKeys: { key: string; label: string }[] = [
     { key: "reservation_ease", label: "Reservation ease" },
     { key: "welcome_check_in", label: "Welcome / check-in" },
     { key: "accommodation_comfort", label: "Accommodation" },
     { key: "conference_facilities", label: "Conference facilities" },
+    { key: "wifi_quality", label: "Wi-Fi" },
     { key: "recreational_leisure", label: "Recreational / leisure" },
     { key: "spa_experience", label: "Spa experience" },
+    { key: "cleanliness_upkeep", label: "Cleanliness" },
+    { key: "food_taste_quality", label: "Food taste" },
+    { key: "service_promptness", label: "Service promptness" },
+    { key: "staff_friendliness", label: "Staff friendliness" },
+    { key: "safety_security", label: "Safety / security" },
+    { key: "overall_experience", label: "Overall experience" },
+    { key: "recommend_score", label: "Likelihood to recommend" },
   ];
 
-  const optionalValues: Record<string, number | null> = {};
-  for (const { key, label } of optionalKeys) {
-    const parsed = parseOptionalRating(body, key, label);
+  const ratingValues: Record<string, number | null> = {};
+  for (const { key, label } of ratingKeys) {
+    const parsed = parseOptionalRatingField(body, key, label);
     if (!parsed.ok) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
-    optionalValues[key] = parsed.value;
+    ratingValues[key] = parsed.value;
   }
 
-  if (
-    !isRating(body.wifi_quality) ||
-    !isRating(body.cleanliness_upkeep) ||
-    !isRating(body.food_taste_quality) ||
-    !isRating(body.service_promptness) ||
-    !isRating(body.staff_friendliness) ||
-    !isRating(body.safety_security) ||
-    !isRating(body.overall_experience)
-  ) {
-    return NextResponse.json(
-      { error: "Required ratings must be integers 1–5" },
-      { status: 400 },
-    );
+  let value_for_money: ValueForMoneyChoice | null = null;
+  if (body.value_for_money !== undefined && body.value_for_money !== null) {
+    if (!isValueForMoney(body.value_for_money)) {
+      return NextResponse.json(
+        { error: "Value for money must be yes, maybe, or no" },
+        { status: 400 },
+      );
+    }
+    value_for_money = body.value_for_money;
   }
 
-  if (!isRecommendScore(body.recommend_score)) {
-    return NextResponse.json(
-      {
-        error:
-          "Likelihood to recommend must be 1–5 (Least likely → Highly likely)",
-      },
-      { status: 400 },
-    );
+  let first_visit: boolean | null = null;
+  if (body.first_visit !== undefined && body.first_visit !== null) {
+    if (typeof body.first_visit !== "boolean") {
+      return NextResponse.json(
+        { error: "First visit must be true, false, or omitted" },
+        { status: 400 },
+      );
+    }
+    first_visit = body.first_visit;
   }
 
-  if (!isValueForMoney(body.value_for_money)) {
-    return NextResponse.json(
-      { error: "Value for money must be yes, maybe, or no" },
-      { status: 400 },
-    );
+  const servicesParsed = parsePurposeServices(body);
+  if (!servicesParsed.ok) {
+    return NextResponse.json({ error: servicesParsed.error }, { status: 400 });
   }
-
-  if (typeof body.first_visit !== "boolean") {
-    return NextResponse.json(
-      { error: "First visit must be true or false" },
-      { status: 400 },
-    );
-  }
-
-  if (!isPurposeOfVisit(body.purpose_of_visit)) {
-    return NextResponse.json(
-      {
-        error:
-          "Purpose of visit must be accommodation, conferencing_meeting, spa, restaurant, other_services, or recreation",
-      },
-      { status: 400 },
-    );
-  }
+  const services = servicesParsed.services;
 
   let standout_staff_name: string | null = null;
   if (typeof body.standout_staff_name === "string") {
@@ -233,30 +256,31 @@ async function handleV2(body: Record<string, unknown>) {
     );
   }
 
-  // New rows: write v2 columns only (do not write legacy recommend yes/maybe/no).
-  // visit_date is always stamped server-side (ignore any client value).
+  // New rows: write v2 columns; services array preferred; leave legacy purpose null
+  // unless a single legacy value was the only input.
   return insertRow({
     guest_name: identity.guest_name,
     phone: identity.phone,
     visit_date: todayVisitDate(),
-    first_visit: body.first_visit,
-    purpose_of_visit: body.purpose_of_visit,
-    reservation_ease: optionalValues.reservation_ease,
-    welcome_check_in: optionalValues.welcome_check_in,
-    accommodation_comfort: optionalValues.accommodation_comfort,
-    conference_facilities: optionalValues.conference_facilities,
-    wifi_quality: body.wifi_quality,
-    recreational_leisure: optionalValues.recreational_leisure,
-    spa_experience: optionalValues.spa_experience,
-    cleanliness_upkeep: body.cleanliness_upkeep,
-    food_taste_quality: body.food_taste_quality,
-    service_promptness: body.service_promptness,
-    staff_friendliness: body.staff_friendliness,
+    first_visit,
+    purpose_of_visit: services && services.length === 1 ? services[0] : null,
+    purpose_of_visit_services: services,
+    reservation_ease: ratingValues.reservation_ease,
+    welcome_check_in: ratingValues.welcome_check_in,
+    accommodation_comfort: ratingValues.accommodation_comfort,
+    conference_facilities: ratingValues.conference_facilities,
+    wifi_quality: ratingValues.wifi_quality,
+    recreational_leisure: ratingValues.recreational_leisure,
+    spa_experience: ratingValues.spa_experience,
+    cleanliness_upkeep: ratingValues.cleanliness_upkeep,
+    food_taste_quality: ratingValues.food_taste_quality,
+    service_promptness: ratingValues.service_promptness,
+    staff_friendliness: ratingValues.staff_friendliness,
     standout_staff_name,
-    safety_security: body.safety_security,
-    overall_experience: body.overall_experience,
-    value_for_money: body.value_for_money,
-    recommend_score: body.recommend_score,
+    safety_security: ratingValues.safety_security,
+    overall_experience: ratingValues.overall_experience,
+    value_for_money,
+    recommend_score: ratingValues.recommend_score,
     comment: identity.comment,
   });
 }

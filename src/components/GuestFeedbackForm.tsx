@@ -24,7 +24,7 @@ type FormState = {
   guest_name: string;
   phone: string;
   first_visit: FirstVisitChoice | null;
-  purpose_of_visit: PurposeOfVisit | null;
+  purpose_of_visit_services: PurposeOfVisit[];
   reservation_ease: RatingOrNa | null;
   welcome_check_in: RatingOrNa | null;
   accommodation_comfort: RatingOrNa | null;
@@ -48,7 +48,7 @@ const emptyForm: FormState = {
   guest_name: "",
   phone: "",
   first_visit: null,
-  purpose_of_visit: null,
+  purpose_of_visit_services: [],
   reservation_ease: null,
   welcome_check_in: null,
   accommodation_comfort: null,
@@ -76,8 +76,9 @@ const RATING_WITH_NA = [
   { value: "na" as const, label: "Not applicable" },
 ];
 
-function toNullableScore(value: RatingOrNa): number | null {
-  return value === "na" ? null : value;
+function toNullableScore(value: RatingOrNa | null): number | null {
+  if (value == null || value === "na") return null;
+  return value;
 }
 
 export function GuestFeedbackForm() {
@@ -126,34 +127,6 @@ export function GuestFeedbackForm() {
       return;
     }
 
-    if (form.first_visit == null || form.purpose_of_visit == null) {
-      setError("Please tap first visit and purpose of visit.");
-      return;
-    }
-
-    if (
-      form.reservation_ease == null ||
-      form.welcome_check_in == null ||
-      form.accommodation_comfort == null ||
-      form.conference_facilities == null ||
-      form.wifi_quality == null ||
-      form.recreational_leisure == null ||
-      form.spa_experience == null ||
-      form.cleanliness_upkeep == null ||
-      form.food_taste_quality == null ||
-      form.service_promptness == null ||
-      form.staff_friendliness == null ||
-      form.safety_security == null ||
-      form.overall_experience == null ||
-      form.value_for_money == null ||
-      form.recommend_score == null
-    ) {
-      setError(
-        "Please answer every rating with a tap (name, phone, standout name, and comments are optional).",
-      );
-      return;
-    }
-
     const standout = form.standout_staff_name.trim();
     if (standout.length > STANDOUT_NAME_MAX_LENGTH) {
       setError(
@@ -177,8 +150,9 @@ export function GuestFeedbackForm() {
           survey_version: 2,
           guest_name: form.guest_name.trim(),
           phone: form.phone.trim(),
-          first_visit: form.first_visit === "yes",
-          purpose_of_visit: form.purpose_of_visit,
+          first_visit:
+            form.first_visit == null ? null : form.first_visit === "yes",
+          purpose_of_visit_services: form.purpose_of_visit_services,
           reservation_ease: toNullableScore(form.reservation_ease),
           welcome_check_in: toNullableScore(form.welcome_check_in),
           accommodation_comfort: toNullableScore(form.accommodation_comfort),
@@ -217,11 +191,10 @@ export function GuestFeedbackForm() {
           ✓
         </div>
         <h2 className="font-display text-4xl font-semibold text-abai-navy sm:text-5xl">
-          Thank you
+          Thank you for staying with us.
         </h2>
         <p className="mt-3 max-w-md text-lg text-abai-muted">
-          We appreciate your feedback. Wishing you a wonderful day at Abai Lodges
-          &amp; Spa.
+          We look forward to welcoming you back to Abai Lodges &amp; Spa.
         </p>
         <p className="mt-8 text-sm text-abai-muted">
           Resetting for the next guest…
@@ -237,11 +210,11 @@ export function GuestFeedbackForm() {
     >
       <div className="animate-fade-up text-center">
         <h1 className="font-display text-3xl font-semibold text-abai-navy sm:text-4xl">
-          Guest feedback form
+          Guest Feedback
         </h1>
         <p className="mt-2 text-base text-abai-muted sm:text-lg">
-          Tap to rate each item. Use not applicable where it does not apply.
-          Name, phone, and written answers are optional.
+          All questions are optional. Tap Excellent through Poor (or Not
+          applicable). Consent is required to submit.
         </p>
       </div>
 
@@ -293,6 +266,7 @@ export function GuestFeedbackForm() {
       </div>
 
       <TapChoices
+        number={1}
         label="Is this your first visit?"
         options={FIRST_VISIT_OPTIONS}
         value={form.first_visit}
@@ -300,14 +274,17 @@ export function GuestFeedbackForm() {
         columns={2}
       />
       <TapChoices
-        label="Purpose of visit"
+        number={2}
+        label="Which Abai services did you get to experience?"
         options={PURPOSE_OF_VISIT_OPTIONS}
-        value={form.purpose_of_visit}
-        onChange={(v) => update("purpose_of_visit", v)}
+        value={form.purpose_of_visit_services}
+        onChange={(v) => update("purpose_of_visit_services", v)}
         columns={3}
+        multiple
       />
 
       <TapChoices
+        number={3}
         label="How would you describe the ease and convenience of making your reservation?"
         options={RATING_WITH_NA}
         value={form.reservation_ease}
@@ -315,6 +292,7 @@ export function GuestFeedbackForm() {
         columns={6}
       />
       <TapChoices
+        number={4}
         label="What was your impression of the welcome and check-in process?"
         options={RATING_WITH_NA}
         value={form.welcome_check_in}
@@ -322,6 +300,7 @@ export function GuestFeedbackForm() {
         columns={6}
       />
       <TapChoices
+        number={5}
         label="How would you describe the comfort and quality of your accommodation?"
         options={RATING_WITH_NA}
         value={form.accommodation_comfort}
@@ -329,6 +308,7 @@ export function GuestFeedbackForm() {
         columns={6}
       />
       <TapChoices
+        number={6}
         label="To what extent did our conference facilities meet your expectations?"
         options={RATING_WITH_NA}
         value={form.conference_facilities}
@@ -336,12 +316,14 @@ export function GuestFeedbackForm() {
         columns={6}
       />
       <TapChoices
+        number={7}
         label="How would you rate the speed, reliability and quality of our Wi-Fi?"
         options={RATING_LABELS}
         value={form.wifi_quality}
         onChange={(v) => update("wifi_quality", v)}
       />
       <TapChoices
+        number={8}
         label="What was your impression of our recreational and leisure facilities?"
         options={RATING_WITH_NA}
         value={form.recreational_leisure}
@@ -349,6 +331,7 @@ export function GuestFeedbackForm() {
         columns={6}
       />
       <TapChoices
+        number={9}
         label="How would you describe the quality of your spa experience?"
         options={RATING_WITH_NA}
         value={form.spa_experience}
@@ -356,24 +339,28 @@ export function GuestFeedbackForm() {
         columns={6}
       />
       <TapChoices
+        number={10}
         label="How satisfied were you with the cleanliness and general upkeep of our facilities?"
         options={RATING_LABELS}
         value={form.cleanliness_upkeep}
         onChange={(v) => update("cleanliness_upkeep", v)}
       />
       <TapChoices
+        number={11}
         label="What was your impression of the taste and quality of our food?"
         options={RATING_LABELS}
         value={form.food_taste_quality}
         onChange={(v) => update("food_taste_quality", v)}
       />
       <TapChoices
+        number={12}
         label="How would you assess the promptness and efficiency of our service?"
         options={RATING_LABELS}
         value={form.service_promptness}
         onChange={(v) => update("service_promptness", v)}
       />
       <TapChoices
+        number={13}
         label="To what extent did our staff demonstrate friendliness, courtesy and helpfulness?"
         options={RATING_LABELS}
         value={form.staff_friendliness}
@@ -382,8 +369,8 @@ export function GuestFeedbackForm() {
 
       <label className="animate-fade-up block space-y-2">
         <span className="font-display text-xl font-semibold text-abai-ink sm:text-2xl">
-          Was there a member of our team whose service stood out? Kindly mention
-          their name.
+          14. Was there a member of our team whose service stood out? Kindly
+          mention their name.
         </span>
         <span className="block text-sm text-abai-muted">Optional</span>
         <input
@@ -398,18 +385,21 @@ export function GuestFeedbackForm() {
       </label>
 
       <TapChoices
+        number={15}
         label="How would you rate the level of safety and security within the hotel?"
         options={RATING_LABELS}
         value={form.safety_security}
         onChange={(v) => update("safety_security", v)}
       />
       <TapChoices
+        number={16}
         label="Taking everything into account, how would you rate your overall experience at Abai Lodges & Spa?"
         options={RATING_LABELS}
         value={form.overall_experience}
         onChange={(v) => update("overall_experience", v)}
       />
       <TapChoices
+        number={17}
         label="Did your overall experience represent good value for money?"
         options={VALUE_FOR_MONEY_OPTIONS}
         value={form.value_for_money}
@@ -417,6 +407,7 @@ export function GuestFeedbackForm() {
         columns={3}
       />
       <TapChoices
+        number={18}
         label="On a scale of 1–5, how likely are you to recommend Abai Lodges & Spa to friends, family or colleagues?"
         options={RECOMMEND_SCORE_OPTIONS}
         value={form.recommend_score}
@@ -425,7 +416,8 @@ export function GuestFeedbackForm() {
 
       <label className="animate-fade-up block space-y-2">
         <span className="font-display text-xl font-semibold text-abai-ink sm:text-2xl">
-          What else would you like to share with us or suggest for improvement?
+          19. What else would you like to share with us or suggest for
+          improvement?
         </span>
         <span className="block text-sm text-abai-muted">Optional</span>
         <textarea

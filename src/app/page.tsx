@@ -19,6 +19,9 @@ export default function HomePage() {
           abailodges.com
         </a>
       </p>
+      <p className="mt-2 text-center text-xs text-abai-muted">
+        Powered by OrbitX Solutions
+      </p>
     </div>
   );
 }
