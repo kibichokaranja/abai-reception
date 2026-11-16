@@ -28,6 +28,33 @@ function parseIsoDate(value: string | null): string | null {
   return value;
 }
 
+/** PostgREST "or" filter for any score ≤ threshold (default 2.5). */
+function lowScoreOrFilter(threshold = 2.5): string {
+  const keys = [
+    "overall_stay",
+    "check_in",
+    "room_cleanliness",
+    "food_drink",
+    "spa_fitness",
+    "staff_experience",
+    "wifi_quality",
+    "cleanliness_upkeep",
+    "food_taste_quality",
+    "service_promptness",
+    "staff_friendliness",
+    "safety_security",
+    "overall_experience",
+    "recommend_score",
+    "reservation_ease",
+    "welcome_check_in",
+    "accommodation_comfort",
+    "conference_facilities",
+    "recreational_leisure",
+    "spa_experience",
+  ];
+  return keys.map((k) => `${k}.lte.${threshold}`).join(",");
+}
+
 export async function GET(request: Request) {
   const session = await getStaffSession();
   if (!session) {
@@ -37,8 +64,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const fromParam = parseIsoDate(searchParams.get("from"));
   const toParam = parseIsoDate(searchParams.get("to"));
-  const lowOnly =
-    session.role === "owner" && searchParams.get("low") === "1";
+  const canFilterLow =
+    session.role === "owner" || session.role === "management";
+  const lowOnly = canFilterLow && searchParams.get("low") === "1";
 
   try {
     const supabase = getSupabaseAdminClient();
@@ -54,39 +82,17 @@ export async function GET(request: Request) {
       const to = toParam ?? defaults.to;
       query = query.gte("visit_date", from).lte("visit_date", to);
     } else {
+      // Owner + management: filter by visit_date consistently.
       if (fromParam) {
-        query = query.gte("created_at", `${fromParam}T00:00:00.000Z`);
+        query = query.gte("visit_date", fromParam);
       }
       if (toParam) {
-        query = query.lte("created_at", `${toParam}T23:59:59.999Z`);
+        query = query.lte("visit_date", toParam);
       }
     }
 
     if (lowOnly) {
-      query = query.or(
-        [
-          "overall_stay.lte.2",
-          "check_in.lte.2",
-          "room_cleanliness.lte.2",
-          "food_drink.lte.2",
-          "spa_fitness.lte.2",
-          "staff_experience.lte.2",
-          "wifi_quality.lte.2",
-          "cleanliness_upkeep.lte.2",
-          "food_taste_quality.lte.2",
-          "service_promptness.lte.2",
-          "staff_friendliness.lte.2",
-          "safety_security.lte.2",
-          "overall_experience.lte.2",
-          "recommend_score.lte.2",
-          "reservation_ease.lte.2",
-          "welcome_check_in.lte.2",
-          "accommodation_comfort.lte.2",
-          "conference_facilities.lte.2",
-          "recreational_leisure.lte.2",
-          "spa_experience.lte.2",
-        ].join(","),
-      );
+      query = query.or(lowScoreOrFilter(2.5));
     }
 
     const { data, error } = await query;
@@ -98,16 +104,21 @@ export async function GET(request: Request) {
         /permission denied|row-level security/i.test(error.message ?? "")
           ? " Run supabase/migrations/20260323_guest_feedback_service_role_grants.sql (GRANT to service_role)."
           : "";
-      const firstVisitPurposeHint = /first_visit|purpose_of_visit/i.test(
-        error.message ?? "",
-      )
-        ? " Run supabase/migrations/20260328_guest_feedback_first_visit_purpose.sql in the Supabase SQL Editor, then Redeploy."
+      const servicesHint = /purpose_of_visit_services/i.test(error.message ?? "")
+        ? " Run supabase/migrations/20260329_purpose_services_array.sql in the Supabase SQL Editor, then Redeploy."
         : "";
+      const firstVisitPurposeHint =
+        !servicesHint && /first_visit|purpose_of_visit/i.test(error.message ?? "")
+          ? " Run supabase/migrations/20260328_guest_feedback_first_visit_purpose.sql in the Supabase SQL Editor, then Redeploy."
+          : "";
       const visitDateHint =
-        !firstVisitPurposeHint && /visit_date/i.test(error.message ?? "")
+        !servicesHint &&
+        !firstVisitPurposeHint &&
+        /visit_date/i.test(error.message ?? "")
           ? " Run supabase/migrations/20260327_guest_feedback_visit_date.sql in the Supabase SQL Editor, then Redeploy."
           : "";
       const missingTableHint =
+        !servicesHint &&
         !firstVisitPurposeHint &&
         !visitDateHint &&
         (error.code === "42P01" || /does not exist/i.test(error.message ?? ""))
@@ -115,7 +126,7 @@ export async function GET(request: Request) {
           : "";
       return NextResponse.json(
         {
-          error: `Could not load feedback from Supabase: ${detail}.${grantHint}${firstVisitPurposeHint}${visitDateHint}${missingTableHint}`,
+          error: `Could not load feedback from Supabase: ${detail}.${grantHint}${servicesHint}${firstVisitPurposeHint}${visitDateHint}${missingTableHint}`,
           debug: {
             urlHost: (() => {
               try {
@@ -143,7 +154,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       feedback,
       analytics: computeStaffAnalytics(feedback),
-      role: "owner" as const,
+      role: session.role,
     });
   } catch (err) {
     console.error(err);

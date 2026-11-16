@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StaffAnalyticsSummary } from "@/components/StaffAnalyticsSummary";
+import { StaffCreateUser } from "@/components/StaffCreateUser";
 import {
   isSurveyV2Row,
   overallForRow,
@@ -10,9 +11,8 @@ import {
   type StaffAnalytics,
 } from "@/lib/staff-analytics";
 import {
-  PURPOSE_OF_VISIT_LABELS,
+  servicesLabelForRow,
   type GuestFeedbackRow,
-  type PurposeOfVisit,
 } from "@/lib/types";
 import { formatVisitDate } from "@/lib/visit-date";
 
@@ -22,41 +22,38 @@ function firstVisitLabel(value: boolean | null): string {
   return "—";
 }
 
-function purposeLabel(value: PurposeOfVisit | null): string {
-  if (!value) return "—";
-  return PURPOSE_OF_VISIT_LABELS[value] ?? value;
-}
-
-function formatDate(iso: string) {
+function visitColumnLabel(row: GuestFeedbackRow) {
+  const datePart = row.visit_date
+    ? formatVisitDate(row.visit_date)
+    : (() => {
+        try {
+          return new Intl.DateTimeFormat("en-KE", {
+            timeZone: "Africa/Nairobi",
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          }).format(new Date(row.created_at));
+        } catch {
+          return "—";
+        }
+      })();
+  let timePart = "";
   try {
-    return new Intl.DateTimeFormat("en-KE", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
-
-function visitDateLabel(row: GuestFeedbackRow) {
-  if (row.visit_date) return formatVisitDate(row.visit_date);
-  // Fallback before migration / for unexpected nulls
-  try {
-    return new Intl.DateTimeFormat("en-KE", {
-      timeZone: "Africa/Nairobi",
-      day: "numeric",
-      month: "short",
-      year: "numeric",
+    timePart = new Intl.DateTimeFormat("en-KE", {
+      hour: "2-digit",
+      minute: "2-digit",
     }).format(new Date(row.created_at));
   } catch {
-    return "—";
+    timePart = "";
   }
+  return { datePart, timePart };
 }
 
+/** Low scores: navy/black (not red), per batch request. */
 function scoreTone(value: number | null) {
   if (value == null) return "text-abai-muted";
-  if (value <= 2) return "text-red-700 font-semibold";
-  if (value === 3) return "text-amber-700";
+  if (value <= 2.5) return "font-semibold text-abai-navy";
+  if (value === 3) return "text-amber-800";
   return "text-emerald-800";
 }
 
@@ -151,20 +148,16 @@ function FeedbackRow({ row }: { row: GuestFeedbackRow }) {
   const [open, setOpen] = useState(false);
   const overall = overallForRow(row);
   const v2 = isSurveyV2Row(row);
+  const visit = visitColumnLabel(row);
 
   return (
     <>
       <tr className="border-t border-abai-navy/10 align-top">
-        <td className="whitespace-nowrap px-3 py-3 text-abai-muted">
-          {formatDate(row.created_at)}
-        </td>
         <td className="whitespace-nowrap px-3 py-3 text-abai-ink">
-          {visitDateLabel(row)}
-        </td>
-        <td className="px-3 py-3 font-medium text-abai-ink">
-          {row.guest_name.trim() ? row.guest_name : (
-            <span className="font-normal text-abai-muted">—</span>
-          )}
+          <span className="block font-medium">{visit.datePart}</span>
+          {visit.timePart ? (
+            <span className="block text-xs text-abai-muted">{visit.timePart}</span>
+          ) : null}
         </td>
         <td className="whitespace-nowrap px-3 py-3">
           {row.phone.trim() ? row.phone : (
@@ -174,8 +167,8 @@ function FeedbackRow({ row }: { row: GuestFeedbackRow }) {
         <td className="whitespace-nowrap px-3 py-3">
           {firstVisitLabel(row.first_visit)}
         </td>
-        <td className="whitespace-nowrap px-3 py-3">
-          {purposeLabel(row.purpose_of_visit)}
+        <td className="max-w-[12rem] px-3 py-3">
+          {servicesLabelForRow(row)}
         </td>
         <td className={`px-3 py-3 ${scoreTone(overall)}`}>
           {formatScore(overall, "—")}
@@ -206,7 +199,7 @@ function FeedbackRow({ row }: { row: GuestFeedbackRow }) {
       </tr>
       {open ? (
         <tr className="border-t border-abai-navy/5 bg-white/70">
-          <td colSpan={12} className="px-3 py-4">
+          <td colSpan={10} className="px-3 py-4">
             <DetailScores row={row} />
           </td>
         </tr>
@@ -215,7 +208,17 @@ function FeedbackRow({ row }: { row: GuestFeedbackRow }) {
   );
 }
 
-export function StaffFeedbackList() {
+type Props = {
+  title?: string;
+  canExport?: boolean;
+  canManageUsers?: boolean;
+};
+
+export function StaffFeedbackList({
+  title = "Guest Feedback",
+  canExport = false,
+  canManageUsers = false,
+}: Props) {
   const router = useRouter();
   const [rows, setRows] = useState<GuestFeedbackRow[]>([]);
   const [analytics, setAnalytics] = useState<StaffAnalytics | null>(null);
@@ -224,6 +227,7 @@ export function StaffFeedbackList() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
+  const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -284,12 +288,45 @@ export function StaffFeedbackList() {
     router.refresh();
   }
 
+  async function downloadExport(format: "pdf" | "xlsx") {
+    setExporting(format);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      params.set("format", format);
+      if (fromDate) params.set("from", fromDate);
+      if (toDate) params.set("to", toDate);
+      if (lowOnly) params.set("low", "1");
+      const res = await fetch(`/api/staff/export?${params.toString()}`);
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || "Export failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download =
+        format === "pdf"
+          ? `abai-feedback-${new Date().toISOString().slice(0, 10)}.pdf`
+          : `abai-feedback-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExporting(null);
+    }
+  }
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
+    <div className="mx-auto max-w-none space-y-6 px-4 py-8 lg:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold text-abai-navy sm:text-4xl">
-            Guest feedback
+            {title}
           </h1>
           <p className="mt-1 text-abai-muted">{countLabel}</p>
         </div>
@@ -328,7 +365,7 @@ export function StaffFeedbackList() {
             onChange={(e) => setLowOnly(e.target.checked)}
             className="size-4 accent-abai-gold"
           />
-          Low scores only (≤2)
+          Low scores only (≤2.5)
         </label>
         <button
           type="button"
@@ -337,6 +374,26 @@ export function StaffFeedbackList() {
         >
           Refresh
         </button>
+        {canExport ? (
+          <>
+            <button
+              type="button"
+              disabled={exporting != null}
+              onClick={() => void downloadExport("xlsx")}
+              className="min-h-10 rounded-lg border border-abai-navy/20 px-4 text-sm font-medium text-abai-navy hover:bg-white disabled:opacity-60"
+            >
+              {exporting === "xlsx" ? "Exporting…" : "Export Excel"}
+            </button>
+            <button
+              type="button"
+              disabled={exporting != null}
+              onClick={() => void downloadExport("pdf")}
+              className="min-h-10 rounded-lg border border-abai-navy/20 px-4 text-sm font-medium text-abai-navy hover:bg-white disabled:opacity-60"
+            >
+              {exporting === "pdf" ? "Exporting…" : "Export PDF"}
+            </button>
+          </>
+        ) : null}
       </div>
 
       {error ? (
@@ -353,16 +410,16 @@ export function StaffFeedbackList() {
         />
       ) : null}
 
+      {canManageUsers ? <StaffCreateUser /> : null}
+
       <div className="overflow-x-auto rounded-xl border border-abai-navy/10 bg-white">
         <table className="min-w-full text-left text-sm">
           <thead className="bg-abai-navy text-white">
             <tr>
-              <th className="px-3 py-3 font-medium">When</th>
-              <th className="px-3 py-3 font-medium">Visit date</th>
-              <th className="px-3 py-3 font-medium">Guest</th>
+              <th className="px-3 py-3 font-medium">Visit</th>
               <th className="px-3 py-3 font-medium">Phone</th>
               <th className="px-3 py-3 font-medium">First visit</th>
-              <th className="px-3 py-3 font-medium">Purpose</th>
+              <th className="px-3 py-3 font-medium">Services</th>
               <th className="px-3 py-3 font-medium">Overall</th>
               <th className="px-3 py-3 font-medium">Recommend</th>
               <th className="px-3 py-3 font-medium">Value</th>
@@ -374,7 +431,7 @@ export function StaffFeedbackList() {
           <tbody>
             {rows.length === 0 && !loading ? (
               <tr>
-                <td colSpan={12} className="px-3 py-8 text-center text-abai-muted">
+                <td colSpan={10} className="px-3 py-8 text-center text-abai-muted">
                   No feedback matches these filters.
                 </td>
               </tr>
