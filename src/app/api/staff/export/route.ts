@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { getStaffSession } from "@/lib/staff-auth";
+import { getDashboardPermissions } from "@/lib/dashboard-permissions";
+import { getStaffSessionFromRequest } from "@/lib/staff-auth";
 import { buildExcelBuffer, buildPdfBuffer } from "@/lib/staff-export";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { SURVEY_V2_SELECT_COLUMNS, type GuestFeedbackRow } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -37,11 +41,33 @@ function lowScoreOrFilter(threshold = 2.5): string {
   return keys.map((k) => `${k}.lte.${threshold}`).join(",");
 }
 
-/** Owner-only export of the current filtered feedback set as PDF or Excel. */
+async function canExport(role: string): Promise<boolean> {
+  if (role === "owner") return true;
+  if (role === "management" || role === "reception") {
+    const perms = await getDashboardPermissions(role);
+    return perms.show_export;
+  }
+  return false;
+}
+
+function noStoreHeaders(
+  extra: Record<string, string> = {},
+): Record<string, string> {
+  return {
+    "Cache-Control": "no-store, no-cache, must-revalidate, private",
+    Pragma: "no-cache",
+    ...extra,
+  };
+}
+
+/** Export filtered feedback as PDF or Excel (owner, or role with show_export). */
 export async function GET(request: Request) {
-  const session = await getStaffSession();
-  if (!session || session.role !== "owner") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getStaffSessionFromRequest(request);
+  if (!session || !(await canExport(session.role))) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: noStoreHeaders() },
+    );
   }
 
   const { searchParams } = new URL(request.url);
@@ -49,7 +75,7 @@ export async function GET(request: Request) {
   if (format !== "xlsx" && format !== "pdf") {
     return NextResponse.json(
       { error: "format must be xlsx or pdf" },
-      { status: 400 },
+      { status: 400, headers: noStoreHeaders() },
     );
   }
 
@@ -74,7 +100,7 @@ export async function GET(request: Request) {
       console.error("export select failed", error);
       return NextResponse.json(
         { error: `Could not load feedback for export: ${error.message}` },
-        { status: 500 },
+        { status: 500, headers: noStoreHeaders() },
       );
     }
 
@@ -85,25 +111,28 @@ export async function GET(request: Request) {
       const buffer = buildPdfBuffer(rows);
       return new NextResponse(buffer, {
         status: 200,
-        headers: {
+        headers: noStoreHeaders({
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="abai-feedback-${stamp}.pdf"`,
-        },
+        }),
       });
     }
 
     const buffer = await buildExcelBuffer(rows);
     return new NextResponse(buffer, {
       status: 200,
-      headers: {
+      headers: noStoreHeaders({
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="abai-feedback-${stamp}.xlsx"`,
-      },
+      }),
     });
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : "Unknown server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: 500, headers: noStoreHeaders() },
+    );
   }
 }

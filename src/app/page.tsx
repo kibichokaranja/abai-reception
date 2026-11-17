@@ -4,7 +4,7 @@ import { GuestFormQr } from "@/components/GuestFormQr";
 
 export default function HomePage() {
   return (
-    <div className="min-h-dvh pb-16">
+    <div className="min-h-dvh pb-20">
       <BrandHeader />
       <GuestFeedbackForm />
       <GuestFormQr />
@@ -18,9 +18,6 @@ export default function HomePage() {
         >
           abailodges.com
         </a>
-      </p>
-      <p className="mt-2 text-center text-xs text-abai-muted">
-        Powered by OrbitX Solutions
       </p>
     </div>
   );

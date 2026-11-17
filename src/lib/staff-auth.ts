@@ -63,6 +63,10 @@ export async function verifyStaffPasswordHash(
   return compare(password, passwordHash);
 }
 
+function normalizeDisplayName(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 /** True when at least one active DB user exists for the role. */
 export async function hasActiveDbUserForRole(role: StaffRole): Promise<boolean> {
   try {
@@ -85,27 +89,38 @@ export async function hasActiveDbUserForRole(role: StaffRole): Promise<boolean> 
 
 /**
  * Authenticate a portal login.
- * 1. If username provided → match active staff_users for that role.
- * 2. Else env password bootstrap — only while no DB user exists for the role.
+ * DB users: require display name + username + password.
+ * Env bootstrap (only while no DB user for role): password only; name/username optional.
  */
 export async function authenticatePortalLogin(options: {
   role: StaffRole;
+  displayName?: string;
   username?: string;
   password: string;
 }): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const password = options.password;
   const username = options.username?.trim() ?? "";
+  const displayName = options.displayName?.trim() ?? "";
 
   if (!password) {
     return { ok: false, error: "Password is required", status: 400 };
   }
 
-  if (username.length > 0) {
+  const hasDbUser = await hasActiveDbUserForRole(options.role);
+
+  if (hasDbUser || username.length > 0 || displayName.length > 0) {
+    if (!displayName) {
+      return { ok: false, error: "Name is required", status: 400 };
+    }
+    if (!username) {
+      return { ok: false, error: "Username is required", status: 400 };
+    }
+
     try {
       const supabase = getSupabaseAdminClient();
       const { data, error } = await supabase
         .from("staff_users")
-        .select("id, password_hash, role, active")
+        .select("id, password_hash, role, active, display_name, username")
         .eq("username", username)
         .maybeSingle();
 
@@ -119,11 +134,32 @@ export async function authenticatePortalLogin(options: {
         };
       }
       if (!data || !data.active || data.role !== options.role) {
-        return { ok: false, error: "Incorrect username or password", status: 401 };
+        return {
+          ok: false,
+          error: "Incorrect name, username, or password",
+          status: 401,
+        };
       }
+
+      const storedName =
+        typeof data.display_name === "string" && data.display_name.trim()
+          ? data.display_name
+          : data.username;
+      if (normalizeDisplayName(storedName) !== normalizeDisplayName(displayName)) {
+        return {
+          ok: false,
+          error: "Incorrect name, username, or password",
+          status: 401,
+        };
+      }
+
       const match = await verifyStaffPasswordHash(password, data.password_hash);
       if (!match) {
-        return { ok: false, error: "Incorrect username or password", status: 401 };
+        return {
+          ok: false,
+          error: "Incorrect name, username, or password",
+          status: 401,
+        };
       }
       return { ok: true };
     } catch (err) {
@@ -136,15 +172,7 @@ export async function authenticatePortalLogin(options: {
     }
   }
 
-  const hasDbUser = await hasActiveDbUserForRole(options.role);
-  if (hasDbUser) {
-    return {
-      ok: false,
-      error: "Enter your username and password.",
-      status: 401,
-    };
-  }
-
+  // Env password bootstrap — only while no DB user exists for the role.
   const envOk =
     options.role === "owner"
       ? staffPasswordConfigured() && verifyStaffPassword(password)
@@ -194,9 +222,9 @@ function normalizeRole(raw: unknown): StaffRole | null {
   return null;
 }
 
-export async function getStaffSession(): Promise<{ role: StaffRole } | null> {
-  const jar = await cookies();
-  const token = jar.get(STAFF_COOKIE)?.value;
+async function verifySessionToken(
+  token: string | undefined | null,
+): Promise<{ role: StaffRole } | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, getSecret());
@@ -206,6 +234,33 @@ export async function getStaffSession(): Promise<{ role: StaffRole } | null> {
   } catch {
     return null;
   }
+}
+
+export async function getStaffSession(): Promise<{ role: StaffRole } | null> {
+  const jar = await cookies();
+  const token = jar.get(STAFF_COOKIE)?.value;
+  return verifySessionToken(token);
+}
+
+/**
+ * Prefer Next cookies(); fall back to the raw Cookie header so export/API
+ * routes still authenticate when the cookie jar is empty in edge cases.
+ */
+export async function getStaffSessionFromRequest(
+  request: Request,
+): Promise<{ role: StaffRole } | null> {
+  const fromJar = await getStaffSession();
+  if (fromJar) return fromJar;
+
+  const header = request.headers.get("cookie");
+  if (!header) return null;
+  const match = header
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${STAFF_COOKIE}=`));
+  if (!match) return null;
+  const token = decodeURIComponent(match.slice(STAFF_COOKIE.length + 1));
+  return verifySessionToken(token);
 }
 
 /** Owner (/staff) session — legacy name kept for existing call sites. */

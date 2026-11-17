@@ -6,16 +6,17 @@ import { useRouter } from "next/navigation";
 type Props = {
   title?: string;
   description?: string;
-  /** POST endpoint that accepts `{ username?, password }` and sets the session cookie. */
+  /** POST endpoint that accepts `{ displayName, username, password }` and sets the session cookie. */
   loginPath?: string;
 };
 
 export function StaffLoginForm({
   title = "Owner login",
-  description = "Enter the owner password to browse full guest feedback and analytics. After users are created, use username + password.",
+  description = "Sign in with your name, username, and password. Until users are created, the env bootstrap password alone still works.",
   loginPath = "/api/staff/login",
 }: Props) {
   const router = useRouter();
+  const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +30,9 @@ export function StaffLoginForm({
       const res = await fetch(loginPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
+          displayName: displayName.trim() || undefined,
           username: username.trim() || undefined,
           password,
         }),
@@ -57,10 +60,23 @@ export function StaffLoginForm({
       <p className="text-sm text-abai-muted">{description}</p>
       <label className="block space-y-2">
         <span className="text-sm font-semibold uppercase tracking-wide text-abai-navy">
-          Username
+          Name
         </span>
         <span className="block text-xs text-abai-muted">
-          Optional for bootstrap env password; required once users exist
+          Display name on your staff account
+        </span>
+        <input
+          type="text"
+          name="displayName"
+          autoComplete="name"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          className="min-h-12 w-full rounded-lg border-2 border-abai-navy/15 px-3 outline-none focus:border-abai-gold"
+        />
+      </label>
+      <label className="block space-y-2">
+        <span className="text-sm font-semibold uppercase tracking-wide text-abai-navy">
+          Username
         </span>
         <input
           type="text"

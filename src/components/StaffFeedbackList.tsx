@@ -2,8 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CategoryAveragesPanel } from "@/components/CategoryAveragesPanel";
+import { OwnerPermissionsEditor } from "@/components/OwnerPermissionsEditor";
+import { QuestionCarousel } from "@/components/QuestionCarousel";
 import { StaffAnalyticsSummary } from "@/components/StaffAnalyticsSummary";
 import { StaffCreateUser } from "@/components/StaffCreateUser";
+import type { DashboardPermissions } from "@/lib/dashboard-permissions";
 import {
   isSurveyV2Row,
   overallForRow,
@@ -144,11 +148,21 @@ function DetailScores({ row }: { row: GuestFeedbackRow }) {
   );
 }
 
-function FeedbackRow({ row }: { row: GuestFeedbackRow }) {
+function FeedbackRow({
+  row,
+  showGuestDetails,
+  showComments,
+}: {
+  row: GuestFeedbackRow;
+  showGuestDetails: boolean;
+  showComments: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const overall = overallForRow(row);
   const v2 = isSurveyV2Row(row);
   const visit = visitColumnLabel(row);
+  const colSpan =
+    6 + (showGuestDetails ? 2 : 0) + (showComments ? 1 : 0);
 
   return (
     <>
@@ -159,11 +173,13 @@ function FeedbackRow({ row }: { row: GuestFeedbackRow }) {
             <span className="block text-xs text-abai-muted">{visit.timePart}</span>
           ) : null}
         </td>
-        <td className="whitespace-nowrap px-3 py-3">
-          {row.phone.trim() ? row.phone : (
-            <span className="text-abai-muted">—</span>
-          )}
-        </td>
+        {showGuestDetails ? (
+          <td className="whitespace-nowrap px-3 py-3">
+            {row.phone.trim() ? row.phone : (
+              <span className="text-abai-muted">—</span>
+            )}
+          </td>
+        ) : null}
         <td className="whitespace-nowrap px-3 py-3">
           {firstVisitLabel(row.first_visit)}
         </td>
@@ -180,12 +196,16 @@ function FeedbackRow({ row }: { row: GuestFeedbackRow }) {
         <td className="px-3 py-3 capitalize">
           {row.value_for_money ?? "—"}
         </td>
-        <td className="px-3 py-3">
-          <TextCell text={row.standout_staff_name} />
-        </td>
-        <td className="px-3 py-3">
-          <TextCell text={row.comment} />
-        </td>
+        {showGuestDetails ? (
+          <td className="px-3 py-3">
+            <TextCell text={row.standout_staff_name} />
+          </td>
+        ) : null}
+        {showComments ? (
+          <td className="px-3 py-3">
+            <TextCell text={row.comment} />
+          </td>
+        ) : null}
         <td className="px-3 py-3">
           <button
             type="button"
@@ -199,7 +219,7 @@ function FeedbackRow({ row }: { row: GuestFeedbackRow }) {
       </tr>
       {open ? (
         <tr className="border-t border-abai-navy/5 bg-white/70">
-          <td colSpan={10} className="px-3 py-4">
+          <td colSpan={colSpan} className="px-3 py-4">
             <DetailScores row={row} />
           </td>
         </tr>
@@ -208,20 +228,38 @@ function FeedbackRow({ row }: { row: GuestFeedbackRow }) {
   );
 }
 
+const OWNER_DEFAULTS: DashboardPermissions = {
+  role: "management",
+  show_analytics: true,
+  show_category_averages: true,
+  show_question_carousel: true,
+  show_feedback_list: true,
+  show_comments: true,
+  show_guest_details: true,
+  show_date_filters: true,
+  show_low_score_filter: true,
+  show_export: true,
+};
+
 type Props = {
   title?: string;
   canExport?: boolean;
   canManageUsers?: boolean;
+  canEditPermissions?: boolean;
 };
 
 export function StaffFeedbackList({
   title = "Guest Feedback",
   canExport = false,
   canManageUsers = false,
+  canEditPermissions = false,
 }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState<GuestFeedbackRow[]>([]);
+  const [statsRows, setStatsRows] = useState<GuestFeedbackRow[]>([]);
   const [analytics, setAnalytics] = useState<StaffAnalytics | null>(null);
+  const [permissions, setPermissions] =
+    useState<DashboardPermissions>(OWNER_DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState("");
@@ -237,10 +275,15 @@ export function StaffFeedbackList({
       if (fromDate) params.set("from", fromDate);
       if (toDate) params.set("to", toDate);
       if (lowOnly) params.set("low", "1");
-      const res = await fetch(`/api/staff/feedback?${params.toString()}`);
+      const res = await fetch(`/api/staff/feedback?${params.toString()}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
       const data = (await res.json()) as {
         feedback?: GuestFeedbackRow[];
-        analytics?: StaffAnalytics;
+        rowsForStats?: GuestFeedbackRow[];
+        analytics?: StaffAnalytics | null;
+        permissions?: DashboardPermissions;
         error?: string;
         debug?: {
           urlHost?: string | null;
@@ -264,8 +307,11 @@ export function StaffFeedbackList({
             .join(" "),
         );
       }
-      setRows(data.feedback ?? []);
+      const list = data.feedback ?? [];
+      setRows(list);
+      setStatsRows(data.rowsForStats ?? list);
       setAnalytics(data.analytics ?? null);
+      if (data.permissions) setPermissions(data.permissions);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
       setAnalytics(null);
@@ -280,11 +326,19 @@ export function StaffFeedbackList({
 
   const countLabel = useMemo(() => {
     if (loading) return "Loading…";
+    if (!permissions.show_feedback_list && analytics) {
+      return `${analytics.total} response${analytics.total === 1 ? "" : "s"}`;
+    }
     return `${rows.length} response${rows.length === 1 ? "" : "s"}`;
-  }, [loading, rows.length]);
+  }, [loading, rows.length, permissions.show_feedback_list, analytics]);
+
+  const allowExport = canExport || permissions.show_export;
 
   async function logout() {
-    await fetch("/api/staff/logout", { method: "POST" });
+    await fetch("/api/staff/logout", {
+      method: "POST",
+      credentials: "include",
+    });
     router.refresh();
   }
 
@@ -297,7 +351,10 @@ export function StaffFeedbackList({
       if (fromDate) params.set("from", fromDate);
       if (toDate) params.set("to", toDate);
       if (lowOnly) params.set("low", "1");
-      const res = await fetch(`/api/staff/export?${params.toString()}`);
+      const res = await fetch(`/api/staff/export?${params.toString()}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error || "Export failed");
@@ -321,6 +378,11 @@ export function StaffFeedbackList({
     }
   }
 
+  const tableColCount =
+    6 +
+    (permissions.show_guest_details ? 2 : 0) +
+    (permissions.show_comments ? 1 : 0);
+
   return (
     <div className="mx-auto max-w-none space-y-6 px-4 py-8 lg:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -339,62 +401,72 @@ export function StaffFeedbackList({
         </button>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-abai-navy/10 bg-white p-4">
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-abai-navy">From</span>
-          <input
-            type="date"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="block min-h-10 rounded-lg border border-abai-navy/15 px-3"
-          />
-        </label>
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-abai-navy">To</span>
-          <input
-            type="date"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            className="block min-h-10 rounded-lg border border-abai-navy/15 px-3"
-          />
-        </label>
-        <label className="flex min-h-10 items-center gap-2 text-sm font-medium text-abai-navy">
-          <input
-            type="checkbox"
-            checked={lowOnly}
-            onChange={(e) => setLowOnly(e.target.checked)}
-            className="size-4 accent-abai-gold"
-          />
-          Low scores only (≤2.5)
-        </label>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="min-h-10 rounded-lg bg-abai-navy px-4 text-sm font-medium text-white"
-        >
-          Refresh
-        </button>
-        {canExport ? (
-          <>
-            <button
-              type="button"
-              disabled={exporting != null}
-              onClick={() => void downloadExport("xlsx")}
-              className="min-h-10 rounded-lg border border-abai-navy/20 px-4 text-sm font-medium text-abai-navy hover:bg-white disabled:opacity-60"
-            >
-              {exporting === "xlsx" ? "Exporting…" : "Export Excel"}
-            </button>
-            <button
-              type="button"
-              disabled={exporting != null}
-              onClick={() => void downloadExport("pdf")}
-              className="min-h-10 rounded-lg border border-abai-navy/20 px-4 text-sm font-medium text-abai-navy hover:bg-white disabled:opacity-60"
-            >
-              {exporting === "pdf" ? "Exporting…" : "Export PDF"}
-            </button>
-          </>
-        ) : null}
-      </div>
+      {(permissions.show_date_filters ||
+        permissions.show_low_score_filter ||
+        allowExport) && (
+        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-abai-navy/10 bg-white p-4">
+          {permissions.show_date_filters ? (
+            <>
+              <label className="space-y-1 text-sm">
+                <span className="font-medium text-abai-navy">From</span>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="block min-h-10 rounded-lg border border-abai-navy/15 px-3"
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="font-medium text-abai-navy">To</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="block min-h-10 rounded-lg border border-abai-navy/15 px-3"
+                />
+              </label>
+            </>
+          ) : null}
+          {permissions.show_low_score_filter ? (
+            <label className="flex min-h-10 items-center gap-2 text-sm font-medium text-abai-navy">
+              <input
+                type="checkbox"
+                checked={lowOnly}
+                onChange={(e) => setLowOnly(e.target.checked)}
+                className="size-4 accent-abai-gold"
+              />
+              Low scores only (≤2.5)
+            </label>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="min-h-10 rounded-lg bg-abai-navy px-4 text-sm font-medium text-white"
+          >
+            Refresh
+          </button>
+          {allowExport ? (
+            <>
+              <button
+                type="button"
+                disabled={exporting != null}
+                onClick={() => void downloadExport("xlsx")}
+                className="min-h-10 rounded-lg border border-abai-navy/20 px-4 text-sm font-medium text-abai-navy hover:bg-white disabled:opacity-60"
+              >
+                {exporting === "xlsx" ? "Exporting…" : "Export Excel"}
+              </button>
+              <button
+                type="button"
+                disabled={exporting != null}
+                onClick={() => void downloadExport("pdf")}
+                className="min-h-10 rounded-lg border border-abai-navy/20 px-4 text-sm font-medium text-abai-navy hover:bg-white disabled:opacity-60"
+              >
+                {exporting === "pdf" ? "Exporting…" : "Export PDF"}
+              </button>
+            </>
+          ) : null}
+        </div>
+      )}
 
       {error ? (
         <p className="rounded-lg bg-red-50 px-4 py-3 text-red-800" role="alert">
@@ -402,7 +474,7 @@ export function StaffFeedbackList({
         </p>
       ) : null}
 
-      {!error ? (
+      {!error && permissions.show_analytics ? (
         <StaffAnalyticsSummary
           analytics={analytics}
           loading={loading}
@@ -410,38 +482,69 @@ export function StaffFeedbackList({
         />
       ) : null}
 
-      {canManageUsers ? <StaffCreateUser /> : null}
+      {!error &&
+      permissions.show_category_averages &&
+      !permissions.show_analytics ? (
+        <CategoryAveragesPanel analytics={analytics} loading={loading} />
+      ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-abai-navy/10 bg-white">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-abai-navy text-white">
-            <tr>
-              <th className="px-3 py-3 font-medium">Visit</th>
-              <th className="px-3 py-3 font-medium">Phone</th>
-              <th className="px-3 py-3 font-medium">First visit</th>
-              <th className="px-3 py-3 font-medium">Services</th>
-              <th className="px-3 py-3 font-medium">Overall</th>
-              <th className="px-3 py-3 font-medium">Recommend</th>
-              <th className="px-3 py-3 font-medium">Value</th>
-              <th className="px-3 py-3 font-medium">Standout</th>
-              <th className="px-3 py-3 font-medium">Comment</th>
-              <th className="px-3 py-3 font-medium">Detail</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && !loading ? (
+      {!error && permissions.show_question_carousel ? (
+        <QuestionCarousel
+          rows={statsRows.length > 0 ? statsRows : rows}
+          analytics={analytics}
+          loading={loading}
+        />
+      ) : null}
+
+      {canManageUsers ? <StaffCreateUser /> : null}
+      {canEditPermissions ? <OwnerPermissionsEditor /> : null}
+
+      {permissions.show_feedback_list ? (
+        <div className="overflow-x-auto rounded-xl border border-abai-navy/10 bg-white">
+          <table className="min-w-full text-left text-sm">
+            <thead className="bg-abai-navy text-white">
               <tr>
-                <td colSpan={10} className="px-3 py-8 text-center text-abai-muted">
-                  No feedback matches these filters.
-                </td>
+                <th className="px-3 py-3 font-medium">Visit</th>
+                {permissions.show_guest_details ? (
+                  <th className="px-3 py-3 font-medium">Phone</th>
+                ) : null}
+                <th className="px-3 py-3 font-medium">First visit</th>
+                <th className="px-3 py-3 font-medium">Services</th>
+                <th className="px-3 py-3 font-medium">Overall</th>
+                <th className="px-3 py-3 font-medium">Recommend</th>
+                <th className="px-3 py-3 font-medium">Value</th>
+                {permissions.show_guest_details ? (
+                  <th className="px-3 py-3 font-medium">Standout</th>
+                ) : null}
+                {permissions.show_comments ? (
+                  <th className="px-3 py-3 font-medium">Comment</th>
+                ) : null}
+                <th className="px-3 py-3 font-medium">Detail</th>
               </tr>
-            ) : null}
-            {rows.map((row) => (
-              <FeedbackRow key={row.id} row={row} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.length === 0 && !loading ? (
+                <tr>
+                  <td
+                    colSpan={tableColCount}
+                    className="px-3 py-8 text-center text-abai-muted"
+                  >
+                    No feedback matches these filters.
+                  </td>
+                </tr>
+              ) : null}
+              {rows.map((row) => (
+                <FeedbackRow
+                  key={row.id}
+                  row={row}
+                  showGuestDetails={permissions.show_guest_details}
+                  showComments={permissions.show_comments}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }

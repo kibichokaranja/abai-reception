@@ -7,18 +7,19 @@ export default async function StaffPage() {
   const authenticated = await isStaffAuthenticated();
 
   return (
-    <div className="min-h-dvh pb-16">
+    <div className="min-h-dvh pb-20">
       <BrandHeader compact />
       {authenticated ? (
         <StaffFeedbackList
           title="Guest Feedback"
           canExport
           canManageUsers
+          canEditPermissions
         />
       ) : (
         <StaffLoginForm
           title="Owner login"
-          description="Enter the owner password (or username + password after users are created) for full feedback, analytics, export, and user management."
+          description="Sign in with your name, username, and password for full feedback, analytics, export, users, and dashboard visibility. Until users exist, the env bootstrap password alone still works."
           loginPath="/api/staff/login"
         />
       )}

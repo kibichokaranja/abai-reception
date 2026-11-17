@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
+import {
+  getDashboardPermissions,
+  type DashboardPermissions,
+} from "@/lib/dashboard-permissions";
 import { computeStaffAnalytics } from "@/lib/staff-analytics";
-import { getStaffSession } from "@/lib/staff-auth";
+import { getStaffSessionFromRequest } from "@/lib/staff-auth";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { describeServiceKeySource, getSupabaseUrl } from "@/lib/supabase-env";
 import { SURVEY_V2_SELECT_COLUMNS, type GuestFeedbackRow } from "@/lib/types";
 import { defaultReceptionVisitWindow } from "@/lib/visit-date";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function safeSupabaseError(error: {
   message?: string;
@@ -55,17 +62,51 @@ function lowScoreOrFilter(threshold = 2.5): string {
   return keys.map((k) => `${k}.lte.${threshold}`).join(",");
 }
 
+function noStoreHeaders(
+  extra: Record<string, string> = {},
+): Record<string, string> {
+  return {
+    "Cache-Control": "no-store, no-cache, must-revalidate, private",
+    Pragma: "no-cache",
+    ...extra,
+  };
+}
+
+const OWNER_FULL: DashboardPermissions = {
+  role: "management",
+  show_analytics: true,
+  show_category_averages: true,
+  show_question_carousel: true,
+  show_feedback_list: true,
+  show_comments: true,
+  show_guest_details: true,
+  show_date_filters: true,
+  show_low_score_filter: true,
+  show_export: true,
+};
+
 export async function GET(request: Request) {
-  const session = await getStaffSession();
+  const session = await getStaffSessionFromRequest(request);
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: noStoreHeaders() },
+    );
   }
+
+  const permissions =
+    session.role === "owner"
+      ? { ...OWNER_FULL, role: "management" as const }
+      : await getDashboardPermissions(session.role);
 
   const { searchParams } = new URL(request.url);
   const fromParam = parseIsoDate(searchParams.get("from"));
   const toParam = parseIsoDate(searchParams.get("to"));
   const canFilterLow =
-    session.role === "owner" || session.role === "management";
+    permissions.show_low_score_filter &&
+    (session.role === "owner" ||
+      session.role === "management" ||
+      session.role === "reception");
   const lowOnly = canFilterLow && searchParams.get("low") === "1";
 
   try {
@@ -82,13 +123,8 @@ export async function GET(request: Request) {
       const to = toParam ?? defaults.to;
       query = query.gte("visit_date", from).lte("visit_date", to);
     } else {
-      // Owner + management: filter by visit_date consistently.
-      if (fromParam) {
-        query = query.gte("visit_date", fromParam);
-      }
-      if (toParam) {
-        query = query.lte("visit_date", toParam);
-      }
+      if (fromParam) query = query.gte("visit_date", fromParam);
+      if (toParam) query = query.lte("visit_date", toParam);
     }
 
     if (lowOnly) {
@@ -139,23 +175,35 @@ export async function GET(request: Request) {
             supabaseCode: error.code ?? null,
           },
         },
-        { status: 500 },
+        { status: 500, headers: noStoreHeaders() },
       );
     }
 
     const feedback = (data ?? []) as unknown as GuestFeedbackRow[];
-    if (session.role === "reception") {
-      return NextResponse.json({
-        feedback,
-        role: "reception" as const,
-      });
-    }
+    const needsAnalytics =
+      session.role === "owner" ||
+      permissions.show_analytics ||
+      permissions.show_category_averages ||
+      permissions.show_question_carousel;
 
-    return NextResponse.json({
-      feedback,
-      analytics: computeStaffAnalytics(feedback),
-      role: session.role,
-    });
+    return NextResponse.json(
+      {
+        feedback: permissions.show_feedback_list ? feedback : [],
+        analytics: needsAnalytics ? computeStaffAnalytics(feedback) : null,
+        // Always include raw rows for carousel/averages when list is hidden.
+        rowsForStats:
+          !permissions.show_feedback_list && needsAnalytics ? feedback : undefined,
+        role: session.role,
+        permissions:
+          session.role === "owner"
+            ? {
+                ...OWNER_FULL,
+                show_export: true,
+              }
+            : permissions,
+      },
+      { headers: noStoreHeaders() },
+    );
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : "Unknown server error";
@@ -173,7 +221,7 @@ export async function GET(request: Request) {
           serviceKeyEnv: describeServiceKeySource(),
         },
       },
-      { status: 500 },
+      { status: 500, headers: noStoreHeaders() },
     );
   }
 }

@@ -2,78 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  overallForRow,
-  recommendLabelForRow,
-} from "@/lib/staff-analytics";
+import { CategoryAveragesPanel } from "@/components/CategoryAveragesPanel";
+import { QuestionCarousel } from "@/components/QuestionCarousel";
+import type { DashboardPermissions } from "@/lib/dashboard-permissions";
+import { defaultPermissionsForRole } from "@/lib/dashboard-permissions";
+import type { StaffAnalytics } from "@/lib/staff-analytics";
 import type { GuestFeedbackRow } from "@/lib/types";
-import {
-  defaultReceptionVisitWindow,
-  formatVisitDate,
-} from "@/lib/visit-date";
-
-function visitColumnLabel(row: GuestFeedbackRow) {
-  const datePart = row.visit_date
-    ? formatVisitDate(row.visit_date)
-    : (() => {
-        try {
-          return new Intl.DateTimeFormat("en-KE", {
-            timeZone: "Africa/Nairobi",
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }).format(new Date(row.created_at));
-        } catch {
-          return "—";
-        }
-      })();
-  let timePart = "";
-  try {
-    timePart = new Intl.DateTimeFormat("en-KE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(row.created_at));
-  } catch {
-    timePart = "";
-  }
-  return { datePart, timePart };
-}
-
-/** Low scores: navy/black (not red). */
-function scoreTone(value: number | null) {
-  if (value == null) return "text-abai-muted";
-  if (value <= 2.5) return "font-semibold text-abai-navy";
-  if (value === 3) return "text-amber-800";
-  return "text-emerald-800";
-}
-
-function TextCell({ text }: { text: string | null }) {
-  const [open, setOpen] = useState(false);
-  if (!text) {
-    return <span className="text-abai-muted">—</span>;
-  }
-  const long = text.length > 80;
-  return (
-    <div className="max-w-[16rem]">
-      <p className={`text-abai-ink ${open ? "whitespace-pre-wrap" : "line-clamp-2"}`}>
-        {text}
-      </p>
-      {long ? (
-        <button
-          type="button"
-          className="mt-1 text-xs font-medium text-abai-navy underline-offset-2 hover:underline"
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? "Show less" : "Show more"}
-        </button>
-      ) : null}
-    </div>
-  );
-}
+import { defaultReceptionVisitWindow } from "@/lib/visit-date";
 
 export function ReceptionFeedbackList() {
   const router = useRouter();
-  const [rows, setRows] = useState<GuestFeedbackRow[]>([]);
+  const [statsRows, setStatsRows] = useState<GuestFeedbackRow[]>([]);
+  const [analytics, setAnalytics] = useState<StaffAnalytics | null>(null);
+  const [permissions, setPermissions] = useState<DashboardPermissions>(() =>
+    defaultPermissionsForRole("reception"),
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState(
@@ -90,9 +33,15 @@ export function ReceptionFeedbackList() {
       const params = new URLSearchParams();
       if (fromDate) params.set("from", fromDate);
       if (toDate) params.set("to", toDate);
-      const res = await fetch(`/api/staff/feedback?${params.toString()}`);
+      const res = await fetch(`/api/staff/feedback?${params.toString()}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
       const data = (await res.json()) as {
         feedback?: GuestFeedbackRow[];
+        rowsForStats?: GuestFeedbackRow[];
+        analytics?: StaffAnalytics | null;
+        permissions?: DashboardPermissions;
         error?: string;
         debug?: {
           urlHost?: string | null;
@@ -116,9 +65,17 @@ export function ReceptionFeedbackList() {
             .join(" "),
         );
       }
-      setRows(data.feedback ?? []);
+      // When list is hidden, API puts rows in rowsForStats; analytics still computed.
+      setStatsRows(
+        (data.rowsForStats && data.rowsForStats.length > 0
+          ? data.rowsForStats
+          : data.feedback) ?? [],
+      );
+      setAnalytics(data.analytics ?? null);
+      if (data.permissions) setPermissions(data.permissions);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
+      setAnalytics(null);
     } finally {
       setLoading(false);
     }
@@ -130,11 +87,15 @@ export function ReceptionFeedbackList() {
 
   const countLabel = useMemo(() => {
     if (loading) return "Loading…";
-    return `${rows.length} response${rows.length === 1 ? "" : "s"}`;
-  }, [loading, rows.length]);
+    const total = analytics?.total ?? statsRows.length;
+    return `${total} response${total === 1 ? "" : "s"}`;
+  }, [loading, analytics, statsRows.length]);
 
   async function logout() {
-    await fetch("/api/staff/logout", { method: "POST" });
+    await fetch("/api/staff/logout", {
+      method: "POST",
+      credentials: "include",
+    });
     router.refresh();
   }
 
@@ -146,7 +107,7 @@ export function ReceptionFeedbackList() {
             Reception desk
           </h1>
           <p className="mt-1 text-abai-muted">
-            Recent guest feedback by visit date · {countLabel}
+            Category averages by visit date · {countLabel}
           </p>
         </div>
         <button
@@ -158,44 +119,46 @@ export function ReceptionFeedbackList() {
         </button>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-abai-navy/10 bg-white p-4">
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-abai-navy">Visit from</span>
-          <input
-            type="date"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="block min-h-10 rounded-lg border border-abai-navy/15 px-3"
-          />
-        </label>
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-abai-navy">Visit to</span>
-          <input
-            type="date"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            className="block min-h-10 rounded-lg border border-abai-navy/15 px-3"
-          />
-        </label>
-        <button
-          type="button"
-          onClick={() => {
-            const next = defaultReceptionVisitWindow(7);
-            setFromDate(next.from);
-            setToDate(next.to);
-          }}
-          className="min-h-10 rounded-lg border border-abai-navy/20 px-4 text-sm font-medium text-abai-navy hover:bg-white"
-        >
-          Last 7 days
-        </button>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="min-h-10 rounded-lg bg-abai-navy px-4 text-sm font-medium text-white"
-        >
-          Refresh
-        </button>
-      </div>
+      {permissions.show_date_filters ? (
+        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-abai-navy/10 bg-white p-4">
+          <label className="space-y-1 text-sm">
+            <span className="font-medium text-abai-navy">Visit from</span>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="block min-h-10 rounded-lg border border-abai-navy/15 px-3"
+            />
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="font-medium text-abai-navy">Visit to</span>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="block min-h-10 rounded-lg border border-abai-navy/15 px-3"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              const next = defaultReceptionVisitWindow(7);
+              setFromDate(next.from);
+              setToDate(next.to);
+            }}
+            className="min-h-10 rounded-lg border border-abai-navy/20 px-4 text-sm font-medium text-abai-navy hover:bg-white"
+          >
+            Last 7 days
+          </button>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="min-h-10 rounded-lg bg-abai-navy px-4 text-sm font-medium text-white"
+          >
+            Refresh
+          </button>
+        </div>
+      ) : null}
 
       {error ? (
         <p className="rounded-lg bg-red-50 px-4 py-3 text-red-800" role="alert">
@@ -203,63 +166,26 @@ export function ReceptionFeedbackList() {
         </p>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-abai-navy/10 bg-white">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-abai-navy text-white">
-            <tr>
-              <th className="px-3 py-3 font-medium">Visit</th>
-              <th className="px-3 py-3 font-medium">Phone</th>
-              <th className="px-3 py-3 font-medium">Overall</th>
-              <th className="px-3 py-3 font-medium">Recommend</th>
-              <th className="px-3 py-3 font-medium">Comment</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && !loading ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-abai-muted">
-                  No feedback in this visit-date range.
-                </td>
-              </tr>
-            ) : null}
-            {rows.map((row) => {
-              const overall = overallForRow(row);
-              const visit = visitColumnLabel(row);
-              return (
-                <tr
-                  key={row.id}
-                  className="border-t border-abai-navy/10 align-top"
-                >
-                  <td className="whitespace-nowrap px-3 py-3 text-abai-ink">
-                    <span className="block font-medium">{visit.datePart}</span>
-                    {visit.timePart ? (
-                      <span className="block text-xs text-abai-muted">
-                        {visit.timePart}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3">
-                    {row.phone.trim() ? (
-                      row.phone
-                    ) : (
-                      <span className="text-abai-muted">—</span>
-                    )}
-                  </td>
-                  <td className={`px-3 py-3 ${scoreTone(overall)}`}>
-                    {overall == null ? "—" : String(overall)}
-                  </td>
-                  <td className="px-3 py-3 capitalize">
-                    {recommendLabelForRow(row)}
-                  </td>
-                  <td className="px-3 py-3">
-                    <TextCell text={row.comment} />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {!error && permissions.show_category_averages ? (
+        <CategoryAveragesPanel analytics={analytics} loading={loading} />
+      ) : null}
+
+      {!error && permissions.show_question_carousel ? (
+        <QuestionCarousel
+          rows={statsRows}
+          analytics={analytics}
+          loading={loading}
+        />
+      ) : null}
+
+      {!error &&
+      !permissions.show_category_averages &&
+      !permissions.show_question_carousel ? (
+        <p className="rounded-xl border border-abai-navy/10 bg-white px-4 py-5 text-sm text-abai-muted">
+          No dashboard sections are enabled for reception. Ask the owner to
+          update visibility on /staff.
+        </p>
+      ) : null}
     </div>
   );
 }
