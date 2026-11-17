@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Outfit } from "next/font/google";
+import { PoweredByFooter } from "@/components/PoweredByFooter";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -30,6 +31,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${outfit.variable} ${cormorant.variable} font-sans antialiased`}>
         {children}
+        <PoweredByFooter />
       </body>
     </html>
   );

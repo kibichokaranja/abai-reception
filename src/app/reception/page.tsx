@@ -7,14 +7,14 @@ export default async function ReceptionPage() {
   const authenticated = await isReceptionAuthenticated();
 
   return (
-    <div className="min-h-dvh pb-16">
+    <div className="min-h-dvh pb-20">
       <BrandHeader compact />
       {authenticated ? (
         <ReceptionFeedbackList />
       ) : (
         <StaffLoginForm
           title="Reception login"
-          description="Enter the reception desk password (or username + password after users are created) to browse recent guest feedback."
+          description="Sign in with your name, username, and password to view category averages. Until users exist, the env bootstrap password alone still works."
           loginPath="/api/reception/login"
         />
       )}

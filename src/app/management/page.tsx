@@ -7,7 +7,7 @@ export default async function ManagementPage() {
   const authenticated = await isManagementAuthenticated();
 
   return (
-    <div className="min-h-dvh pb-16">
+    <div className="min-h-dvh pb-20">
       <BrandHeader compact />
       {authenticated ? (
         <StaffFeedbackList
@@ -18,7 +18,7 @@ export default async function ManagementPage() {
       ) : (
         <StaffLoginForm
           title="Management login"
-          description="Enter the management password (or username + password after users are created) for feedback analytics and filters. Export and user create are owner-only."
+          description="Sign in with your name, username, and password. Until users exist, the env bootstrap password alone still works. What you see is controlled by the owner."
           loginPath="/api/management/login"
         />
       )}

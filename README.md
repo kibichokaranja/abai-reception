@@ -2,17 +2,17 @@
 
 Front-desk / QR guest feedback for **Abai Lodges & Spa** (“Exclusivity Redefined”).
 
-- Guest kiosk form at `/` — **Guest Feedback**; all survey answers optional; consent required; Excellent→Poor; multi-select services; thank-you welcome-back copy; **Powered by OrbitX Solutions**
-- **Owner** at `/staff` — `STAFF_PASSWORD` (or DB user); analytics, filters (≤2.5), PDF/Excel export, create users
-- **Management** at `/management` — `MANAGEMENT_PASSWORD` (or DB user); analytics + filters; **no** export / create user
-- **Reception** at `/reception` — `RECEPTION_PASSWORD` (or DB user); simple Visit/Phone list (default last 7 days)
+- Guest kiosk form at `/` — **Guest Feedback**; all survey answers optional; consent required; Excellent→Poor; multi-select services; thank-you welcome-back copy; footer **Powered by OrbitXSolutions** (pink **X**)
+- **Owner** at `/staff` — name + username + password (or env bootstrap); analytics, 17-question carousel, filters (≤2.5), PDF/Excel export, create users, **dashboard visibility** editor
+- **Management** at `/management` — name + username + password (or env bootstrap); visibility controlled by owner (default: analytics + list, no export)
+- **Reception** at `/reception` — name + username + password (or env bootstrap); **category averages + question carousel only** (no customer review rows by default)
 - Supabase Postgres + RLS; Vercel-ready Next.js App Router + Tailwind
 
 ## Stack
 
 - Next.js 15 (App Router) + Tailwind CSS 4
-- Supabase (`guest_feedback` + `staff_users`)
-- Env bootstrap passwords + optional DB users (`staff_users`); signed cookie session (`role: owner | management | reception`)
+- Supabase (`guest_feedback` + `staff_users` + `dashboard_permissions`)
+- Env bootstrap passwords + DB users (`staff_users` with display name); signed cookie session (`role: owner | management | reception`)
 
 ## Local setup
 
@@ -44,6 +44,8 @@ Open [http://localhost:3000](http://localhost:3000) (guest), [/staff](http://loc
 | [`20260328_guest_feedback_first_visit_purpose.sql`](supabase/migrations/20260328_guest_feedback_first_visit_purpose.sql) | **`first_visit`** + legacy **`purpose_of_visit`** |
 | [`20260329_purpose_services_array.sql`](supabase/migrations/20260329_purpose_services_array.sql) | **`purpose_of_visit_services text[]`** (multi-select) |
 | [`20260330_staff_users.sql`](supabase/migrations/20260330_staff_users.sql) | **`staff_users`** (username + bcrypt + role) |
+| [`20260331_staff_users_display_name.sql`](supabase/migrations/20260331_staff_users_display_name.sql) | **`display_name`** on staff_users |
+| [`20260332_dashboard_permissions.sql`](supabase/migrations/20260332_dashboard_permissions.sql) | **Owner-editable** management/reception visibility |
 
 ### RLS summary
 
@@ -51,7 +53,7 @@ Open [http://localhost:3000](http://localhost:3000) (guest), [/staff](http://loc
 |------|------------|
 | `anon` | `INSERT` only on `guest_feedback` (public form) |
 | `authenticated` | `SELECT` on `guest_feedback` (reserved) |
-| Service role | Full access (staff APIs after login); only path to `staff_users` |
+| Service role | Full access (staff APIs after login); only path to `staff_users` / `dashboard_permissions` |
 
 ## Environment variables
 
@@ -65,15 +67,15 @@ Open [http://localhost:3000](http://localhost:3000) (guest), [/staff](http://loc
 | `RECEPTION_PASSWORD` | Server only | Reception bootstrap for `/reception` |
 | `STAFF_SESSION_SECRET` | Server only | Signs session cookie (`owner \| management \| reception`); ≥16 chars |
 
-Once an active `staff_users` row exists for a role, that role’s env password stops working — use username + password instead.
+Once an active `staff_users` row exists for a role, that role’s env password stops working — use **name + username + password** instead.
 
 ## Vercel deploy
 
 Repo includes `vercel.json` with `"framework": "nextjs"`.
 
 1. Import `kibichokaranja/abai-reception`.
-2. Paste env vars for Production (**add `MANAGEMENT_PASSWORD`**).
-3. Run any missing SQL (especially `20260329` + `20260330`) → **Redeploy**.
+2. Paste env vars for Production.
+3. Run any missing SQL (especially `20260331` + `20260332`) → **Redeploy**.
 4. Guest `/` · Owner `/staff` · Management `/management` · Reception `/reception`.
 
 ## Guest questions
@@ -93,22 +95,25 @@ All survey answers optional; **consent checkbox required** to submit. Ratings di
 | 18 | Likelihood to recommend | Highly → Least likely |
 | 19 | Other comments | Optional text |
 
-## Permission matrix
+Staff backends slide through **17** questions (#1–13, #15–18).
+
+## Permission matrix (defaults; owner can change)
 
 | Capability | Owner `/staff` | Management `/management` | Reception `/reception` |
 |------------|----------------|--------------------------|------------------------|
-| Feedback list | ✓ | ✓ | ✓ (7-day default) |
-| Analytics | ✓ | ✓ | ✗ |
-| Filters / ≤2.5 | ✓ | ✓ | Date only |
-| PDF/Excel export | ✓ | ✗ | ✗ |
+| Category averages / carousel | ✓ | ✓ (default) | ✓ (default) |
+| Feedback list (review rows) | ✓ | ✓ (default) | ✗ (default) |
+| Filters / ≤2.5 | ✓ | ✓ (default) | Date only |
+| PDF/Excel export | ✓ | ✗ (default) | ✗ |
 | Create user | ✓ | ✗ | ✗ |
+| Edit dashboard visibility | ✓ | ✗ | ✗ |
 
 ## Smoke-test (after SQL + Redeploy)
 
-1. `/` — numbered questions, Excellent→Poor, multi services, optional taps, consent, thank-you, OrbitX footer.
-2. `/staff` — landscape Visit column (no When/Guest), navy low scores, ≤2.5 filter, export, create user.
-3. `/management` — analytics + filters; no export/users.
-4. `/reception` — Visit + Phone simple list.
+1. `/` — guest form; bottom-right **Powered by OrbitXSolutions** (pink X).
+2. `/staff` — name+username+password login; carousel; export; create user; visibility editor.
+3. `/management` — analytics per owner settings.
+4. `/reception` — category averages only (no review table).
 
 ## Scripts
 
