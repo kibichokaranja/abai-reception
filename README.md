@@ -2,17 +2,17 @@
 
 Front-desk / QR guest feedback for **Abai Lodges & Spa** (“Exclusivity Redefined”).
 
-- Guest kiosk form at `/` — optional name + phone, then **survey v2** (17 questions); consent disclaimer + required checkbox above submit
-- **Owner** browse at `/staff` — `STAFF_PASSWORD`, full filters, **At a glance** analytics, expandable score detail
-- **Reception desk** at `/reception` — `RECEPTION_PASSWORD`, simpler table, default last 7 days by `visit_date` (phones visible; no analytics strip)
-- Footer brand QR: “Scan to open on your phone”
+- Guest kiosk form at `/` — **Guest Feedback**; all survey answers optional; consent required; Excellent→Poor; multi-select services; thank-you welcome-back copy; **Powered by OrbitX Solutions**
+- **Owner** at `/staff` — `STAFF_PASSWORD` (or DB user); analytics, filters (≤2.5), PDF/Excel export, create users
+- **Management** at `/management` — `MANAGEMENT_PASSWORD` (or DB user); analytics + filters; **no** export / create user
+- **Reception** at `/reception` — `RECEPTION_PASSWORD` (or DB user); simple Visit/Phone list (default last 7 days)
 - Supabase Postgres + RLS; Vercel-ready Next.js App Router + Tailwind
 
 ## Stack
 
 - Next.js 15 (App Router) + Tailwind CSS 4
-- Supabase (`guest_feedback` table)
-- Env-based owner + reception passwords + signed HTTP-only cookie session (`role: owner | reception`)
+- Supabase (`guest_feedback` + `staff_users`)
+- Env bootstrap passwords + optional DB users (`staff_users`); signed cookie session (`role: owner | management | reception`)
 
 ## Local setup
 
@@ -23,7 +23,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) for the guest form, [http://localhost:3000/staff](http://localhost:3000/staff) for owner, and [http://localhost:3000/reception](http://localhost:3000/reception) for the desk.
+Open [http://localhost:3000](http://localhost:3000) (guest), [/staff](http://localhost:3000/staff) (owner), [/management](http://localhost:3000/management), [/reception](http://localhost:3000/reception).
 
 ## Supabase
 
@@ -38,93 +38,77 @@ Open [http://localhost:3000](http://localhost:3000) for the guest form, [http://
 | [`20260322_guest_feedback.sql`](supabase/migrations/20260322_guest_feedback.sql) | Create table + RLS (fresh installs) |
 | [`20260323_guest_feedback_service_role_grants.sql`](supabase/migrations/20260323_guest_feedback_service_role_grants.sql) | `GRANT` for staff service role |
 | [`20260324_guest_feedback_staff_comment.sql`](supabase/migrations/20260324_guest_feedback_staff_comment.sql) | Legacy staff_experience + comment |
-| [`20260325_guest_feedback_survey_v2.sql`](supabase/migrations/20260325_guest_feedback_survey_v2.sql) | **Survey v2 columns** (required for current form) |
+| [`20260325_guest_feedback_survey_v2.sql`](supabase/migrations/20260325_guest_feedback_survey_v2.sql) | **Survey v2 columns** |
 | [`20260326_guest_feedback_optional_identity.sql`](supabase/migrations/20260326_guest_feedback_optional_identity.sql) | Allow empty name/phone on submit |
-| [`20260327_guest_feedback_visit_date.sql`](supabase/migrations/20260327_guest_feedback_visit_date.sql) | **`visit_date`** (Africa/Nairobi; read-only on guest form) |
-| [`20260328_guest_feedback_first_visit_purpose.sql`](supabase/migrations/20260328_guest_feedback_first_visit_purpose.sql) | **`first_visit`** + **`purpose_of_visit`** (required taps) |
+| [`20260327_guest_feedback_visit_date.sql`](supabase/migrations/20260327_guest_feedback_visit_date.sql) | **`visit_date`** (Africa/Nairobi) |
+| [`20260328_guest_feedback_first_visit_purpose.sql`](supabase/migrations/20260328_guest_feedback_first_visit_purpose.sql) | **`first_visit`** + legacy **`purpose_of_visit`** |
+| [`20260329_purpose_services_array.sql`](supabase/migrations/20260329_purpose_services_array.sql) | **`purpose_of_visit_services text[]`** (multi-select) |
+| [`20260330_staff_users.sql`](supabase/migrations/20260330_staff_users.sql) | **`staff_users`** (username + bcrypt + role) |
 
 ### RLS summary
 
 | Role | Capability |
 |------|------------|
-| `anon` | `INSERT` only (public form) |
-| `authenticated` | `SELECT` (reserved for future auth) |
-| Service role | Full access (used by `/api/staff/feedback` after owner or reception login) |
+| `anon` | `INSERT` only on `guest_feedback` (public form) |
+| `authenticated` | `SELECT` on `guest_feedback` (reserved) |
+| Service role | Full access (staff APIs after login); only path to `staff_users` |
 
 ## Environment variables
 
 | Variable | Where | Purpose |
 |----------|--------|---------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Client + server | Supabase project URL (`https://….supabase.co`) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client + server | Guest inserts — legacy `anon` JWT **or** set `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (`sb_publishable_…`) instead |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server only | Staff reads — legacy `service_role` JWT **or** set `SUPABASE_SECRET_KEY` (`sb_secret_…`) instead. Never put anon/publishable here |
-| `STAFF_PASSWORD` | Server only | Owner password for `/staff` (full feedback + analytics) |
-| `RECEPTION_PASSWORD` | Server only | Reception desk password for `/reception` |
-| `STAFF_SESSION_SECRET` | Server only | Signs staff session cookie with `role: owner \| reception` (≥16 chars) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Client + server | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client + server | Guest inserts — or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only | Staff reads / users — or `SUPABASE_SECRET_KEY` |
+| `STAFF_PASSWORD` | Server only | Owner bootstrap for `/staff` (until a DB owner exists) |
+| `MANAGEMENT_PASSWORD` | Server only | Management bootstrap for `/management` |
+| `RECEPTION_PASSWORD` | Server only | Reception bootstrap for `/reception` |
+| `STAFF_SESSION_SECRET` | Server only | Signs session cookie (`owner \| management \| reception`); ≥16 chars |
 
-If `/staff` or `/reception` shows a Supabase load error after guests can submit: confirm `SUPABASE_SERVICE_ROLE_KEY` is the **service_role / secret** key (not anon), run the grants migration, then **Redeploy**.
+Once an active `staff_users` row exists for a role, that role’s env password stops working — use username + password instead.
 
 ## Vercel deploy
 
 Repo includes `vercel.json` with `"framework": "nextjs"`.
 
-| Setting | Value |
-|---------|--------|
-| Framework Preset | **Next.js** (not Other) |
-| Root Directory | `./` |
-| Build Command | `next build` |
-| Output Directory | **leave default / empty** |
-
 1. Import `kibichokaranja/abai-reception`.
-2. Paste env vars for Production.
-3. Run survey v2 SQL if not already applied → **Redeploy**.
-4. Guest: `/` · Owner: `/staff` · Reception: `/reception`.
-5. Set **`RECEPTION_PASSWORD`** (and existing `STAFF_PASSWORD` / `STAFF_SESSION_SECRET`) on **every** Vercel project that hosts this app, then Redeploy.
+2. Paste env vars for Production (**add `MANAGEMENT_PASSWORD`**).
+3. Run any missing SQL (especially `20260329` + `20260330`) → **Redeploy**.
+4. Guest `/` · Owner `/staff` · Management `/management` · Reception `/reception`.
 
-### QR / tablet kiosk
-
-- Production `/` is the kiosk / printed QR target (footer also shows the brand QR asset).
-- After submit, thank-you auto-resets after ~5 seconds.
-
-## Guest questions (survey v2)
+## Guest questions
 
 Identity: **Name**, **Phone** (optional), **Date of visit** (read-only today).
 
-Required taps before ratings: **Is this your first visit?** (Yes / No), **Purpose of visit** (Accommodation, Conferencing/meeting, Spa, Restaurant, Other services, Recreation).
+All survey answers optional; **consent checkbox required** to submit. Ratings display **Excellent → Poor**.
 
 | # | Question | Control |
 |---|----------|---------|
-| 1 | How would you describe the ease and convenience of making your reservation? | 1–5 + not applicable |
-| 2 | What was your impression of the welcome and check-in process? | 1–5 + not applicable |
-| 3 | How would you describe the comfort and quality of your accommodation? | 1–5 + not applicable |
-| 4 | To what extent did our conference facilities meet your expectations? | 1–5 + not applicable |
-| 5 | How would you rate the speed, reliability and quality of our Wi-Fi? | 1–5 |
-| 6 | What was your impression of our recreational and leisure facilities? | 1–5 + not applicable |
-| 7 | How would you describe the quality of your spa experience? | 1–5 + not applicable |
-| 8 | How satisfied were you with the cleanliness and general upkeep of our facilities? | 1–5 |
-| 9 | What was your impression of the taste and quality of our food? | 1–5 |
-| 10 | How would you assess the promptness and efficiency of our service? | 1–5 |
-| 11 | To what extent did our staff demonstrate friendliness, courtesy and helpfulness? | 1–5 |
-| 12 | Was there a member of our team whose service stood out? Kindly mention their name. | Optional text |
-| 13 | How would you rate the level of safety and security within the hotel? | 1–5 |
-| 14 | Taking everything into account, how would you rate your overall experience at Abai Lodges & Spa? | 1–5 |
-| 15 | Did your overall experience represent good value for money? | Yes / No / Maybe |
-| 16 | On a scale of 1–5, how likely are you to recommend Abai Lodges & Spa to friends, family or colleagues? | Least / Slightly / Somewhat / Very / Highly likely |
-| 17 | What else would you like to share with us or suggest for improvement? | Optional text (max 1000) |
+| 1 | Is this your first visit? | Yes / No |
+| 2 | Which Abai services did you get to experience? | Multi-select |
+| 3–13 | Reservation … Staff friendliness | 1–5 (+ N/A where noted) |
+| 14 | Standout team member name | Optional text |
+| 15–16 | Safety / Overall experience | 1–5 |
+| 17 | Value for money | Yes / No / Maybe |
+| 18 | Likelihood to recommend | Highly → Least likely |
+| 19 | Other comments | Optional text |
 
-**Recommend score mapping:** guest taps map to `recommend_score` **1–5** (Least likely → Highly likely). Staff list shows those labels (short column headers unchanged).
+## Permission matrix
 
-Legacy columns remain in the DB for older rows; staff UI still reads them.
+| Capability | Owner `/staff` | Management `/management` | Reception `/reception` |
+|------------|----------------|--------------------------|------------------------|
+| Feedback list | ✓ | ✓ | ✓ (7-day default) |
+| Analytics | ✓ | ✓ | ✗ |
+| Filters / ≤2.5 | ✓ | ✓ | Date only |
+| PDF/Excel export | ✓ | ✗ | ✗ |
+| Create user | ✓ | ✗ | ✗ |
 
 ## Smoke-test (after SQL + Redeploy)
 
-1. Open production `/` — 17 questions + footer QR visible.
-2. Submit with not applicable on at least one optional rating, fill standout name + comment, complete required taps.
-3. Confirm thank-you, then auto-reset.
-4. Open `/staff`, sign in with `STAFF_PASSWORD`, confirm the new row (First visit / Purpose / Overall / Recommend / Value / Standout / Comment).
-5. Expand **Scores**; confirm At a glance averages and value-for-money mix update.
-6. Open `/reception`, sign in with `RECEPTION_PASSWORD`, confirm the simpler table (When / Visit date / Guest / Phone / Overall / Recommend / Comment) defaults to the last 7 visit days and shows the phone.
-7. Legacy rows (if any) still list on `/staff` with a legacy marker.
+1. `/` — numbered questions, Excellent→Poor, multi services, optional taps, consent, thank-you, OrbitX footer.
+2. `/staff` — landscape Visit column (no When/Guest), navy low scores, ≤2.5 filter, export, create user.
+3. `/management` — analytics + filters; no export/users.
+4. `/reception` — Visit + Phone simple list.
 
 ## Scripts
 

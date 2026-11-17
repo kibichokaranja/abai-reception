@@ -14,7 +14,7 @@ export default async function ReceptionPage() {
       ) : (
         <StaffLoginForm
           title="Reception login"
-          description="Enter the reception desk password to browse recent guest feedback."
+          description="Enter the reception desk password (or username + password after users are created) to browse recent guest feedback."
           loginPath="/api/reception/login"
         />
       )}

@@ -12,35 +12,38 @@ import {
   formatVisitDate,
 } from "@/lib/visit-date";
 
-function formatDate(iso: string) {
+function visitColumnLabel(row: GuestFeedbackRow) {
+  const datePart = row.visit_date
+    ? formatVisitDate(row.visit_date)
+    : (() => {
+        try {
+          return new Intl.DateTimeFormat("en-KE", {
+            timeZone: "Africa/Nairobi",
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          }).format(new Date(row.created_at));
+        } catch {
+          return "—";
+        }
+      })();
+  let timePart = "";
   try {
-    return new Intl.DateTimeFormat("en-KE", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
-
-function visitDateLabel(row: GuestFeedbackRow) {
-  if (row.visit_date) return formatVisitDate(row.visit_date);
-  try {
-    return new Intl.DateTimeFormat("en-KE", {
-      timeZone: "Africa/Nairobi",
-      day: "numeric",
-      month: "short",
-      year: "numeric",
+    timePart = new Intl.DateTimeFormat("en-KE", {
+      hour: "2-digit",
+      minute: "2-digit",
     }).format(new Date(row.created_at));
   } catch {
-    return "—";
+    timePart = "";
   }
+  return { datePart, timePart };
 }
 
+/** Low scores: navy/black (not red). */
 function scoreTone(value: number | null) {
   if (value == null) return "text-abai-muted";
-  if (value <= 2) return "text-red-700 font-semibold";
-  if (value === 3) return "text-amber-700";
+  if (value <= 2.5) return "font-semibold text-abai-navy";
+  if (value === 3) return "text-amber-800";
   return "text-emerald-800";
 }
 
@@ -136,7 +139,7 @@ export function ReceptionFeedbackList() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+    <div className="mx-auto max-w-none space-y-6 px-4 py-8 lg:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold text-abai-navy sm:text-4xl">
@@ -204,9 +207,7 @@ export function ReceptionFeedbackList() {
         <table className="min-w-full text-left text-sm">
           <thead className="bg-abai-navy text-white">
             <tr>
-              <th className="px-3 py-3 font-medium">When</th>
-              <th className="px-3 py-3 font-medium">Visit date</th>
-              <th className="px-3 py-3 font-medium">Guest</th>
+              <th className="px-3 py-3 font-medium">Visit</th>
               <th className="px-3 py-3 font-medium">Phone</th>
               <th className="px-3 py-3 font-medium">Overall</th>
               <th className="px-3 py-3 font-medium">Recommend</th>
@@ -216,30 +217,26 @@ export function ReceptionFeedbackList() {
           <tbody>
             {rows.length === 0 && !loading ? (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-abai-muted">
+                <td colSpan={5} className="px-3 py-8 text-center text-abai-muted">
                   No feedback in this visit-date range.
                 </td>
               </tr>
             ) : null}
             {rows.map((row) => {
               const overall = overallForRow(row);
+              const visit = visitColumnLabel(row);
               return (
                 <tr
                   key={row.id}
                   className="border-t border-abai-navy/10 align-top"
                 >
-                  <td className="whitespace-nowrap px-3 py-3 text-abai-muted">
-                    {formatDate(row.created_at)}
-                  </td>
                   <td className="whitespace-nowrap px-3 py-3 text-abai-ink">
-                    {visitDateLabel(row)}
-                  </td>
-                  <td className="px-3 py-3 font-medium text-abai-ink">
-                    {row.guest_name.trim() ? (
-                      row.guest_name
-                    ) : (
-                      <span className="font-normal text-abai-muted">—</span>
-                    )}
+                    <span className="block font-medium">{visit.datePart}</span>
+                    {visit.timePart ? (
+                      <span className="block text-xs text-abai-muted">
+                        {visit.timePart}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
                     {row.phone.trim() ? (

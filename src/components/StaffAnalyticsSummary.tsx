@@ -145,8 +145,8 @@ export function StaffAnalyticsSummary({ analytics, loading, lowOnly }: Props) {
               <li key={cat.key} className="min-w-0">
                 <p className="truncate text-sm text-abai-muted">{cat.label}</p>
                 <p
-                  className={`font-display text-2xl font-semibold ${
-                    cat.weak ? "text-red-700" : "text-abai-navy"
+                  className={`font-display text-2xl font-semibold text-abai-navy ${
+                    cat.weak ? "font-bold" : ""
                   }`}
                 >
                   {formatAvg(cat.average)}
@@ -166,13 +166,13 @@ export function StaffAnalyticsSummary({ analytics, loading, lowOnly }: Props) {
           className="rounded-xl border border-abai-gold/50 bg-[#fff8e8] px-4 py-3 text-sm text-abai-navy"
           role="status"
         >
-          <span className="font-semibold text-abai-gold-pressed">Needs attention: </span>
+          <span className="font-semibold text-abai-navy">Needs attention: </span>
           {weakAreas.map((a) => `${a.label} (${formatAvg(a.average)})`).join(" · ")}
-          <span className="text-abai-muted"> — average ≤ 3</span>
+          <span className="text-abai-muted"> — average ≤ 2.5</span>
         </p>
       ) : (
         <p className="text-sm text-abai-muted">
-          No weak areas in this range (all category averages above 3).
+          No weak areas in this range (all category averages above 2.5).
         </p>
       )}
     </section>

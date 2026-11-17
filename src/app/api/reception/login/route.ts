@@ -1,30 +1,32 @@
 import { NextResponse } from "next/server";
 import {
+  authenticatePortalLogin,
   createStaffSessionToken,
-  receptionPasswordConfigured,
   staffCookieOptions,
   STAFF_COOKIE,
-  verifyReceptionPassword,
 } from "@/lib/staff-auth";
 
 export async function POST(request: Request) {
-  if (!receptionPasswordConfigured()) {
-    return NextResponse.json(
-      { error: "RECEPTION_PASSWORD is not configured on the server." },
-      { status: 503 },
-    );
-  }
-
   let password = "";
+  let username = "";
   try {
-    const body = (await request.json()) as { password?: string };
+    const body = (await request.json()) as {
+      password?: string;
+      username?: string;
+    };
     password = typeof body.password === "string" ? body.password : "";
+    username = typeof body.username === "string" ? body.username : "";
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (!verifyReceptionPassword(password)) {
-    return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
+  const auth = await authenticatePortalLogin({
+    role: "reception",
+    username,
+    password,
+  });
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   try {
