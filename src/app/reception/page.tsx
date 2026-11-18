@@ -14,7 +14,7 @@ export default async function ReceptionPage() {
       ) : (
         <StaffLoginForm
           title="Reception login"
-          description="Sign in with your name, username, and password to view category averages. Until users exist, the env bootstrap password alone still works."
+          description="Sign in with your username and password to view category averages. Until users exist, the env bootstrap password alone still works."
           loginPath="/api/reception/login"
         />
       )}

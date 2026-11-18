@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CategoryAveragesPanel } from "@/components/CategoryAveragesPanel";
-import { QuestionCarousel } from "@/components/QuestionCarousel";
 import type { DashboardPermissions } from "@/lib/dashboard-permissions";
 import { defaultPermissionsForRole } from "@/lib/dashboard-permissions";
 import type { StaffAnalytics } from "@/lib/staff-analytics";
@@ -72,7 +71,13 @@ export function ReceptionFeedbackList() {
           : data.feedback) ?? [],
       );
       setAnalytics(data.analytics ?? null);
-      if (data.permissions) setPermissions(data.permissions);
+      if (data.permissions) {
+        setPermissions({
+          ...data.permissions,
+          // Hard rule: reception never shows the question carousel.
+          show_question_carousel: false,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
       setAnalytics(null);
@@ -170,17 +175,7 @@ export function ReceptionFeedbackList() {
         <CategoryAveragesPanel analytics={analytics} loading={loading} />
       ) : null}
 
-      {!error && permissions.show_question_carousel ? (
-        <QuestionCarousel
-          rows={statsRows}
-          analytics={analytics}
-          loading={loading}
-        />
-      ) : null}
-
-      {!error &&
-      !permissions.show_category_averages &&
-      !permissions.show_question_carousel ? (
+      {!error && !permissions.show_category_averages ? (
         <p className="rounded-xl border border-abai-navy/10 bg-white px-4 py-5 text-sm text-abai-muted">
           No dashboard sections are enabled for reception. Ask the owner to
           update visibility on /staff.

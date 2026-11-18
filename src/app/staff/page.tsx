@@ -19,7 +19,7 @@ export default async function StaffPage() {
       ) : (
         <StaffLoginForm
           title="Owner login"
-          description="Sign in with your name, username, and password for full feedback, analytics, export, users, and dashboard visibility. Until users exist, the env bootstrap password alone still works."
+          description="Sign in with your username and password for full feedback, analytics, export, users, and dashboard visibility. Until users exist, the env bootstrap password alone still works."
           loginPath="/api/staff/login"
         />
       )}

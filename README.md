@@ -3,9 +3,9 @@
 Front-desk / QR guest feedback for **Abai Lodges & Spa** (“Exclusivity Redefined”).
 
 - Guest kiosk form at `/` — **Guest Feedback**; all survey answers optional; consent required; Excellent→Poor; multi-select services; thank-you welcome-back copy; footer **Powered by OrbitXSolutions** (pink **X**)
-- **Owner** at `/staff` — name + username + password (or env bootstrap); analytics, 17-question carousel, filters (≤2.5), PDF/Excel export, create users, **dashboard visibility** editor
-- **Management** at `/management` — name + username + password (or env bootstrap); visibility controlled by owner (default: analytics + list, no export)
-- **Reception** at `/reception` — name + username + password (or env bootstrap); **category averages + question carousel only** (no customer review rows by default)
+- **Owner** at `/staff` — username + password (or env bootstrap); analytics, 17-question carousel, filters (≤2.5), PDF/Excel export, create users (with display name), **dashboard visibility** editor
+- **Management** at `/management` — username + password (or env bootstrap); visibility controlled by owner (default: analytics + list + carousel, no export)
+- **Reception** at `/reception` — username + password (or env bootstrap); **category averages only** by default (no question carousel, no customer review rows)
 - Supabase Postgres + RLS; Vercel-ready Next.js App Router + Tailwind
 
 ## Stack
@@ -46,6 +46,7 @@ Open [http://localhost:3000](http://localhost:3000) (guest), [/staff](http://loc
 | [`20260330_staff_users.sql`](supabase/migrations/20260330_staff_users.sql) | **`staff_users`** (username + bcrypt + role) |
 | [`20260331_staff_users_display_name.sql`](supabase/migrations/20260331_staff_users_display_name.sql) | **`display_name`** on staff_users |
 | [`20260332_dashboard_permissions.sql`](supabase/migrations/20260332_dashboard_permissions.sql) | **Owner-editable** management/reception visibility |
+| [`20260333_reception_no_carousel.sql`](supabase/migrations/20260333_reception_no_carousel.sql) | Force reception `show_question_carousel = false` |
 
 ### RLS summary
 
@@ -67,7 +68,7 @@ Open [http://localhost:3000](http://localhost:3000) (guest), [/staff](http://loc
 | `RECEPTION_PASSWORD` | Server only | Reception bootstrap for `/reception` |
 | `STAFF_SESSION_SECRET` | Server only | Signs session cookie (`owner \| management \| reception`); ≥16 chars |
 
-Once an active `staff_users` row exists for a role, that role’s env password stops working — use **name + username + password** instead.
+Once an active `staff_users` row exists for a role, that role’s env password stops working — use **username + password** instead (display name is set when creating users, not at login).
 
 ## Vercel deploy
 
@@ -75,7 +76,7 @@ Repo includes `vercel.json` with `"framework": "nextjs"`.
 
 1. Import `kibichokaranja/abai-reception`.
 2. Paste env vars for Production.
-3. Run any missing SQL (especially `20260331` + `20260332`) → **Redeploy**.
+3. Run any missing SQL (especially `20260331`–`20260333`) → **Redeploy**.
 4. Guest `/` · Owner `/staff` · Management `/management` · Reception `/reception`.
 
 ## Guest questions

@@ -31,7 +31,8 @@ export const DASHBOARD_PERMISSION_FIELDS = [
   {
     key: "show_question_carousel" as const,
     label: "Question carousel",
-    hint: "Slide through the 17 survey questions",
+    hint: "Slide through survey questions (owner + management only; never on reception)",
+    roles: ["management"] as const,
   },
   {
     key: "show_feedback_list" as const,
@@ -85,7 +86,8 @@ const RECEPTION_DEFAULTS: DashboardPermissions = {
   role: "reception",
   show_analytics: false,
   show_category_averages: true,
-  show_question_carousel: true,
+  // Carousel is owner + management only — never reception.
+  show_question_carousel: false,
   show_feedback_list: false,
   show_comments: false,
   show_guest_details: false,
@@ -93,6 +95,14 @@ const RECEPTION_DEFAULTS: DashboardPermissions = {
   show_low_score_filter: false,
   show_export: false,
 };
+
+/** Permission fields editable for a dashboard role in the owner UI. */
+export function permissionFieldsForRole(role: DashboardRole) {
+  return DASHBOARD_PERMISSION_FIELDS.filter((field) => {
+    if (!("roles" in field) || !field.roles) return true;
+    return (field.roles as readonly DashboardRole[]).includes(role);
+  });
+}
 
 export function defaultPermissionsForRole(
   role: DashboardRole,
@@ -114,9 +124,11 @@ function normalizeRow(
     show_category_averages: Boolean(
       row.show_category_averages ?? defaults.show_category_averages,
     ),
-    show_question_carousel: Boolean(
-      row.show_question_carousel ?? defaults.show_question_carousel,
-    ),
+    // Reception never gets the question carousel, even if DB still has true.
+    show_question_carousel:
+      role === "reception"
+        ? false
+        : Boolean(row.show_question_carousel ?? defaults.show_question_carousel),
     show_feedback_list: Boolean(
       row.show_feedback_list ?? defaults.show_feedback_list,
     ),
@@ -175,6 +187,13 @@ export async function upsertDashboardPermissions(
     ...current,
     ...patch,
     role,
+    // Hard rule: reception dashboards never include the question carousel.
+    show_question_carousel:
+      role === "reception"
+        ? false
+        : Boolean(
+            patch.show_question_carousel ?? current.show_question_carousel,
+          ),
   };
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase

@@ -20,7 +20,7 @@ alter table public.dashboard_permissions enable row level security;
 
 grant select, insert, update, delete on table public.dashboard_permissions to service_role;
 
--- Defaults: management sees analytics + list; reception sees category averages only.
+-- Defaults: management sees analytics + list + carousel; reception sees category averages only (no carousel).
 insert into public.dashboard_permissions as dp (
   role,
   show_analytics,
@@ -49,7 +49,7 @@ insert into public.dashboard_permissions as dp (
     'reception',
     false,
     true,
-    true,
+    false,
     false,
     false,
     false,
