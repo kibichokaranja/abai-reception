@@ -63,10 +63,6 @@ export async function verifyStaffPasswordHash(
   return compare(password, passwordHash);
 }
 
-function normalizeDisplayName(value: string): string {
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
 /** True when at least one active DB user exists for the role. */
 export async function hasActiveDbUserForRole(role: StaffRole): Promise<boolean> {
   try {
@@ -89,18 +85,16 @@ export async function hasActiveDbUserForRole(role: StaffRole): Promise<boolean> 
 
 /**
  * Authenticate a portal login.
- * DB users: require display name + username + password.
- * Env bootstrap (only while no DB user for role): password only; name/username optional.
+ * DB users: require username + password only (display name is create-user metadata).
+ * Env bootstrap (only while no DB user for role): password only; username optional.
  */
 export async function authenticatePortalLogin(options: {
   role: StaffRole;
-  displayName?: string;
   username?: string;
   password: string;
 }): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const password = options.password;
   const username = options.username?.trim() ?? "";
-  const displayName = options.displayName?.trim() ?? "";
 
   if (!password) {
     return { ok: false, error: "Password is required", status: 400 };
@@ -108,10 +102,7 @@ export async function authenticatePortalLogin(options: {
 
   const hasDbUser = await hasActiveDbUserForRole(options.role);
 
-  if (hasDbUser || username.length > 0 || displayName.length > 0) {
-    if (!displayName) {
-      return { ok: false, error: "Name is required", status: 400 };
-    }
+  if (hasDbUser || username.length > 0) {
     if (!username) {
       return { ok: false, error: "Username is required", status: 400 };
     }
@@ -120,7 +111,7 @@ export async function authenticatePortalLogin(options: {
       const supabase = getSupabaseAdminClient();
       const { data, error } = await supabase
         .from("staff_users")
-        .select("id, password_hash, role, active, display_name, username")
+        .select("id, password_hash, role, active, username")
         .eq("username", username)
         .maybeSingle();
 
@@ -136,19 +127,7 @@ export async function authenticatePortalLogin(options: {
       if (!data || !data.active || data.role !== options.role) {
         return {
           ok: false,
-          error: "Incorrect name, username, or password",
-          status: 401,
-        };
-      }
-
-      const storedName =
-        typeof data.display_name === "string" && data.display_name.trim()
-          ? data.display_name
-          : data.username;
-      if (normalizeDisplayName(storedName) !== normalizeDisplayName(displayName)) {
-        return {
-          ok: false,
-          error: "Incorrect name, username, or password",
+          error: "Incorrect username or password",
           status: 401,
         };
       }
@@ -157,7 +136,7 @@ export async function authenticatePortalLogin(options: {
       if (!match) {
         return {
           ok: false,
-          error: "Incorrect name, username, or password",
+          error: "Incorrect username or password",
           status: 401,
         };
       }

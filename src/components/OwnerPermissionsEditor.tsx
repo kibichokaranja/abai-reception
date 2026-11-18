@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  DASHBOARD_PERMISSION_FIELDS,
+  permissionFieldsForRole,
   type DashboardPermissionKey,
   type DashboardPermissions,
   type DashboardRole,
@@ -81,8 +81,15 @@ export function OwnerPermissionsEditor() {
     try {
       const current = byRole[activeRole];
       const permissions = Object.fromEntries(
-        DASHBOARD_PERMISSION_FIELDS.map((f) => [f.key, current[f.key]]),
+        permissionFieldsForRole(activeRole).map((f) => [
+          f.key,
+          current[f.key],
+        ]),
       );
+      // Reception never gets the question carousel.
+      if (activeRole === "reception") {
+        permissions.show_question_carousel = false;
+      }
       const res = await fetch("/api/staff/permissions", {
         method: "PUT",
         credentials: "include",
@@ -151,28 +158,36 @@ export function OwnerPermissionsEditor() {
       {loading || !current ? (
         <p className="text-sm text-abai-muted">Loading permissions…</p>
       ) : (
-        <ul className="space-y-2">
-          {DASHBOARD_PERMISSION_FIELDS.map((field) => (
-            <li key={field.key}>
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-abai-navy/10 px-3 py-3 hover:bg-abai-navy/[0.02]">
-                <input
-                  type="checkbox"
-                  checked={Boolean(current[field.key])}
-                  onChange={() => toggle(field.key)}
-                  className="mt-1 size-4 accent-abai-gold"
-                />
-                <span>
-                  <span className="block text-sm font-medium text-abai-navy">
-                    {field.label}
+        <div className="space-y-3">
+          <ul className="space-y-2">
+            {permissionFieldsForRole(activeRole).map((field) => (
+              <li key={field.key}>
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-abai-navy/10 px-3 py-3 hover:bg-abai-navy/[0.02]">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(current[field.key])}
+                    onChange={() => toggle(field.key)}
+                    className="mt-1 size-4 accent-abai-gold"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-abai-navy">
+                      {field.label}
+                    </span>
+                    <span className="block text-xs text-abai-muted">
+                      {field.hint}
+                    </span>
                   </span>
-                  <span className="block text-xs text-abai-muted">
-                    {field.hint}
-                  </span>
-                </span>
-              </label>
-            </li>
-          ))}
-        </ul>
+                </label>
+              </li>
+            ))}
+          </ul>
+          {activeRole === "reception" ? (
+            <p className="text-xs text-abai-muted">
+              Question carousel is available on owner and management only — it
+              cannot be enabled for reception.
+            </p>
+          ) : null}
+        </div>
       )}
 
       <div className="flex flex-wrap items-center gap-3">

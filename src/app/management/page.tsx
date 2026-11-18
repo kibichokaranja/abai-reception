@@ -18,7 +18,7 @@ export default async function ManagementPage() {
       ) : (
         <StaffLoginForm
           title="Management login"
-          description="Sign in with your name, username, and password. Until users exist, the env bootstrap password alone still works. What you see is controlled by the owner."
+          description="Sign in with your username and password. Until users exist, the env bootstrap password alone still works. What you see is controlled by the owner."
           loginPath="/api/management/login"
         />
       )}

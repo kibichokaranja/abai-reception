@@ -98,6 +98,10 @@ export async function GET(request: Request) {
     session.role === "owner"
       ? { ...OWNER_FULL, role: "management" as const }
       : await getDashboardPermissions(session.role);
+  // Reception never receives the question carousel, regardless of stored flags.
+  if (session.role === "reception") {
+    permissions.show_question_carousel = false;
+  }
 
   const { searchParams } = new URL(request.url);
   const fromParam = parseIsoDate(searchParams.get("from"));

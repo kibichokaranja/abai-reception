@@ -9,29 +9,19 @@ import {
 export async function POST(request: Request) {
   let password = "";
   let username = "";
-  let displayName = "";
   try {
     const body = (await request.json()) as {
       password?: string;
       username?: string;
-      displayName?: string;
-      name?: string;
     };
     password = typeof body.password === "string" ? body.password : "";
     username = typeof body.username === "string" ? body.username : "";
-    displayName =
-      typeof body.displayName === "string"
-        ? body.displayName
-        : typeof body.name === "string"
-          ? body.name
-          : "";
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   const auth = await authenticatePortalLogin({
     role: "reception",
-    displayName,
     username,
     password,
   });
