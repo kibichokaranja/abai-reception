@@ -25,10 +25,13 @@ export type GuestFeedbackInput = {
   recommend: RecommendChoice;
 };
 
+export type ApprovalStatus = "pending" | "approved" | "rejected";
+
 /** Survey v2 — all survey answers optional; consent enforced client-side. */
 export type GuestFeedbackV2Input = {
   guest_name: string;
   phone: string;
+  room_number: string | null;
   first_visit: boolean | null;
   /** Legacy single purpose (older rows / optional mirror). */
   purpose_of_visit: PurposeOfVisit | null;
@@ -57,13 +60,22 @@ export type GuestFeedbackV2Input = {
 export type GuestFeedbackRow = {
   id: string;
   created_at: string;
-  /** Calendar date of visit (YYYY-MM-DD), Africa/Nairobi. */
+  /** Calendar date of visit (YYYY-MM-DD), Africa/Nairobi — stamped server-side. */
   visit_date: string;
   guest_name: string;
   phone: string;
+  /** Optional room number (replaces Date of visit on the guest form UI). */
+  room_number: string | null;
   first_visit: boolean | null;
   purpose_of_visit: PurposeOfVisit | null;
   purpose_of_visit_services: PurposeOfVisit[] | null;
+  approval_status: ApprovalStatus;
+  approved_at: string | null;
+  approved_by: string | null;
+  /** When true, exclude from analytics if “hide irrelevant” filter is on. */
+  is_irrelevant: boolean;
+  submit_lat: number | null;
+  submit_lng: number | null;
   // Legacy
   overall_stay: number | null;
   check_in: number | null;
@@ -193,9 +205,16 @@ export const SURVEY_V2_SELECT_COLUMNS = [
   "id",
   "guest_name",
   "phone",
+  "room_number",
   "first_visit",
   "purpose_of_visit",
   "purpose_of_visit_services",
+  "approval_status",
+  "approved_at",
+  "approved_by",
+  "is_irrelevant",
+  "submit_lat",
+  "submit_lng",
   "overall_stay",
   "check_in",
   "room_cleanliness",
@@ -224,8 +243,13 @@ export const SURVEY_V2_SELECT_COLUMNS = [
   "created_at",
 ].join(", ");
 
+export const ROOM_NUMBER_MAX_LENGTH = 40;
+
 export const STAFF_USER_ROLES: { value: StaffUserRole; label: string }[] = [
   { value: "owner", label: "Owner" },
   { value: "management", label: "Management" },
-  { value: "reception", label: "Reception" },
+  { value: "reception", label: "Staff desk" },
 ];
+
+/** UI label for the reception role / portal (route stays `/reception`). */
+export const STAFF_DESK_LABEL = "Staff desk";

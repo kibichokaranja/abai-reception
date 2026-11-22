@@ -5,6 +5,7 @@ import type {
 } from "@/lib/staff-analytics";
 import { recommendLabelForRow } from "@/lib/staff-analytics";
 import {
+  RATING_LABELS,
   RECOMMEND_SCORE_LABELS,
   VALUE_FOR_MONEY_OPTIONS,
   type GuestFeedbackRow,
@@ -12,15 +13,15 @@ import {
 } from "@/lib/types";
 
 /**
- * The 17 scorable / choosable survey questions (guest form #1–13, #15–18).
- * Standout name (#14) and free-text comment (#19) are excluded from the carousel.
+ * All survey slides for owner/management carousel (guest form #1–19).
+ * Rating questions show distribution detail; first visit (Q1) shows yes count.
  */
 export type SurveyQuestionSlide = {
   number: number;
   key: string;
   shortLabel: string;
   fullLabel: string;
-  kind: "rating" | "choice" | "services" | "first_visit";
+  kind: "rating" | "choice" | "services" | "first_visit" | "text";
 };
 
 export const SURVEY_QUESTION_SLIDES: SurveyQuestionSlide[] = [
@@ -124,6 +125,14 @@ export const SURVEY_QUESTION_SLIDES: SurveyQuestionSlide[] = [
     kind: "rating",
   },
   {
+    number: 14,
+    key: "standout_staff_name",
+    shortLabel: "Standout staff",
+    fullLabel:
+      "Was there a member of our team whose service stood out? Kindly mention their name.",
+    kind: "text",
+  },
+  {
     number: 15,
     key: "safety_security",
     shortLabel: "Safety",
@@ -154,7 +163,17 @@ export const SURVEY_QUESTION_SLIDES: SurveyQuestionSlide[] = [
       "On a scale of 1–5, how likely are you to recommend Abai Lodges & Spa to friends, family or colleagues?",
     kind: "rating",
   },
+  {
+    number: 19,
+    key: "comment",
+    shortLabel: "Comments",
+    fullLabel:
+      "What else would you like to share with us or suggest for improvement?",
+    kind: "text",
+  },
 ];
+
+export type RatingBucket = { value: number; label: string; count: number };
 
 export type QuestionSlideStats = {
   slide: SurveyQuestionSlide;
@@ -165,6 +184,10 @@ export type QuestionSlideStats = {
   firstVisitYes: number;
   firstVisitNo: number;
   serviceCounts: { label: string; count: number }[];
+  /** Score distribution for rating questions (detail). */
+  ratingBuckets: RatingBucket[];
+  /** Sample text answers for standout / comment slides. */
+  textSamples: string[];
 };
 
 function emptyMix(): ChoiceMix {
@@ -182,6 +205,24 @@ function emptyMix(): ChoiceMix {
 function pct(part: number, total: number): number {
   if (total === 0) return 0;
   return Math.round((part / total) * 1000) / 10;
+}
+
+function ratingBucketsFor(
+  rows: GuestFeedbackRow[],
+  key: keyof GuestFeedbackRow,
+): RatingBucket[] {
+  const counts = new Map<number, number>();
+  for (const row of rows) {
+    const value = row[key];
+    if (typeof value === "number" && value >= 1 && value <= 5) {
+      counts.set(value, (counts.get(value) ?? 0) + 1);
+    }
+  }
+  return RATING_LABELS.map((r) => ({
+    value: r.value,
+    label: r.label,
+    count: counts.get(r.value) ?? 0,
+  }));
 }
 
 export function buildQuestionSlideStats(
@@ -205,6 +246,11 @@ export function buildQuestionSlideStats(
         firstVisitYes: 0,
         firstVisitNo: 0,
         serviceCounts: [],
+        ratingBuckets: ratingBucketsFor(
+          rows,
+          slide.key as keyof GuestFeedbackRow,
+        ),
+        textSamples: [],
       };
     }
 
@@ -219,6 +265,8 @@ export function buildQuestionSlideStats(
         firstVisitYes: 0,
         firstVisitNo: 0,
         serviceCounts: [],
+        ratingBuckets: [],
+        textSamples: [],
       };
     }
 
@@ -238,6 +286,28 @@ export function buildQuestionSlideStats(
         firstVisitYes: yes,
         firstVisitNo: no,
         serviceCounts: [],
+        ratingBuckets: [],
+        textSamples: [],
+      };
+    }
+
+    if (slide.kind === "text") {
+      const key = slide.key as "standout_staff_name" | "comment";
+      const textSamples = rows
+        .map((r) => (typeof r[key] === "string" ? r[key]!.trim() : ""))
+        .filter((t) => t.length > 0)
+        .slice(0, 8);
+      return {
+        slide,
+        average: null,
+        count: textSamples.length,
+        weak: false,
+        choiceMix: null,
+        firstVisitYes: 0,
+        firstVisitNo: 0,
+        serviceCounts: [],
+        ratingBuckets: [],
+        textSamples,
       };
     }
 
@@ -272,6 +342,8 @@ export function buildQuestionSlideStats(
       firstVisitYes: 0,
       firstVisitNo: 0,
       serviceCounts,
+      ratingBuckets: [],
+      textSamples: [],
     };
   });
 }
@@ -294,6 +366,25 @@ export function sampleRecommendLabels(rows: GuestFeedbackRow[], limit = 5) {
     .map((r) => recommendLabelForRow(r))
     .filter((l) => l !== "—")
     .slice(0, limit);
+}
+
+/** First-visit yes helper for summary exports (yes count among answered). */
+export function firstVisitYesCount(rows: GuestFeedbackRow[]): {
+  yes: number;
+  total: number;
+  yesPct: number;
+} {
+  let yes = 0;
+  let total = 0;
+  for (const row of rows) {
+    if (row.first_visit === true) {
+      yes += 1;
+      total += 1;
+    } else if (row.first_visit === false) {
+      total += 1;
+    }
+  }
+  return { yes, total, yesPct: pct(yes, total) };
 }
 
 export { pct };

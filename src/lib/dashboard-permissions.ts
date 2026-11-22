@@ -31,13 +31,13 @@ export const DASHBOARD_PERMISSION_FIELDS = [
   {
     key: "show_question_carousel" as const,
     label: "Question carousel",
-    hint: "Slide through survey questions (owner + management only; never on reception)",
+    hint: "Slide through survey questions (owner + management only; never on staff desk)",
     roles: ["management"] as const,
   },
   {
     key: "show_feedback_list" as const,
     label: "Customer review rows",
-    hint: "Individual guest feedback table",
+    hint: "Individual guest feedback table (approved only)",
   },
   {
     key: "show_comments" as const,
@@ -47,7 +47,7 @@ export const DASHBOARD_PERMISSION_FIELDS = [
   {
     key: "show_guest_details" as const,
     label: "Guest details",
-    hint: "Phone / standout name columns (requires review rows)",
+    hint: "Name / phone / room columns (requires review rows)",
   },
   {
     key: "show_date_filters" as const,
@@ -147,22 +147,52 @@ function normalizeRow(
   };
 }
 
+async function selectPermissionsRow(
+  role: DashboardRole,
+): Promise<Partial<DashboardPermissions> | null> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("dashboard_permissions")
+    .select(
+      "role, show_analytics, show_category_averages, show_question_carousel, show_feedback_list, show_comments, show_guest_details, show_date_filters, show_low_score_filter, show_export, updated_at",
+    )
+    .eq("role", role)
+    .maybeSingle();
+  if (error) {
+    console.error("dashboard_permissions select failed", error);
+    if (/does not exist/i.test(error.message ?? "")) {
+      throw new Error(
+        `dashboard_permissions unavailable: ${error.message}. Run supabase/migrations/20260332_dashboard_permissions.sql.`,
+      );
+    }
+    return null;
+  }
+  return (data as Partial<DashboardPermissions> | null) ?? null;
+}
+
 export async function getDashboardPermissions(
   role: DashboardRole,
 ): Promise<DashboardPermissions> {
   try {
-    const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("dashboard_permissions")
-      .select("*")
-      .eq("role", role)
-      .maybeSingle();
-    if (error) {
-      console.error("dashboard_permissions select failed", error);
-      return defaultPermissionsForRole(role);
+    const data = await selectPermissionsRow(role);
+    if (!data) {
+      // Seed a row so owner saves and role dashboards stay consistent after refresh.
+      const defaults = defaultPermissionsForRole(role);
+      try {
+        return await upsertDashboardPermissions(role, defaults);
+      } catch (seedErr) {
+        console.error("dashboard_permissions seed failed", seedErr);
+        return defaults;
+      }
     }
-    return normalizeRow(role, data as Partial<DashboardPermissions> | null);
+    return normalizeRow(role, data);
   } catch (err) {
+    if (
+      err instanceof Error &&
+      /dashboard_permissions unavailable/i.test(err.message)
+    ) {
+      throw err;
+    }
     console.error("dashboard_permissions unavailable", err);
     return defaultPermissionsForRole(role);
   }
@@ -182,12 +212,18 @@ export async function upsertDashboardPermissions(
   role: DashboardRole,
   patch: Partial<Omit<DashboardPermissions, "role" | "updated_at">>,
 ): Promise<DashboardPermissions> {
-  const current = await getDashboardPermissions(role);
+  let current: DashboardPermissions;
+  try {
+    const existing = await selectPermissionsRow(role);
+    current = normalizeRow(role, existing);
+  } catch {
+    current = defaultPermissionsForRole(role);
+  }
   const next: DashboardPermissions = {
     ...current,
     ...patch,
     role,
-    // Hard rule: reception dashboards never include the question carousel.
+    // Hard rule: staff desk dashboards never include the question carousel.
     show_question_carousel:
       role === "reception"
         ? false
@@ -214,7 +250,9 @@ export async function upsertDashboardPermissions(
       },
       { onConflict: "role" },
     )
-    .select("*")
+    .select(
+      "role, show_analytics, show_category_averages, show_question_carousel, show_feedback_list, show_comments, show_guest_details, show_date_filters, show_low_score_filter, show_export, updated_at",
+    )
     .single();
 
   if (error) {

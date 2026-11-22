@@ -15,6 +15,7 @@ export default async function StaffPage() {
           canExport
           canManageUsers
           canEditPermissions
+          canModerate
         />
       ) : (
         <StaffLoginForm

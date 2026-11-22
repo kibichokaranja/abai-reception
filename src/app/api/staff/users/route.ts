@@ -198,3 +198,158 @@ export async function POST(request: Request) {
     );
   }
 }
+
+/** Owner edit staff user (display name, role, active, optional password). */
+export async function PUT(request: Request) {
+  const session = await requireOwner(request);
+  if (!session) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: noStoreHeaders() },
+    );
+  }
+
+  let id = "";
+  let displayName: string | undefined;
+  let role: StaffUserRole | undefined;
+  let active: boolean | undefined;
+  let password: string | undefined;
+
+  try {
+    const body = (await request.json()) as {
+      id?: string;
+      displayName?: string;
+      name?: string;
+      role?: string;
+      active?: boolean;
+      password?: string;
+    };
+    id = typeof body.id === "string" ? body.id.trim() : "";
+    if (typeof body.displayName === "string") {
+      displayName = body.displayName.trim();
+    } else if (typeof body.name === "string") {
+      displayName = body.name.trim();
+    }
+    if (isStaffUserRole(body.role)) role = body.role;
+    if (typeof body.active === "boolean") active = body.active;
+    if (typeof body.password === "string" && body.password.length > 0) {
+      password = body.password;
+    }
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid JSON body" },
+      { status: 400, headers: noStoreHeaders() },
+    );
+  }
+
+  if (!id) {
+    return NextResponse.json(
+      { error: "User id is required" },
+      { status: 400, headers: noStoreHeaders() },
+    );
+  }
+  if (
+    displayName === undefined &&
+    role === undefined &&
+    active === undefined &&
+    password === undefined
+  ) {
+    return NextResponse.json(
+      { error: "Nothing to update" },
+      { status: 400, headers: noStoreHeaders() },
+    );
+  }
+  if (
+    displayName !== undefined &&
+    (displayName.length < 2 || displayName.length > 120)
+  ) {
+    return NextResponse.json(
+      { error: "Name must be 2–120 characters" },
+      { status: 400, headers: noStoreHeaders() },
+    );
+  }
+  if (password !== undefined && password.length < 8) {
+    return NextResponse.json(
+      { error: "Password must be at least 8 characters" },
+      { status: 400, headers: noStoreHeaders() },
+    );
+  }
+
+  try {
+    const patch: Record<string, unknown> = {};
+    if (displayName !== undefined) patch.display_name = displayName;
+    if (role !== undefined) patch.role = role;
+    if (active !== undefined) patch.active = active;
+    if (password !== undefined) {
+      patch.password_hash = await hashStaffPassword(password);
+    }
+
+    const supabase = getSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("staff_users")
+      .update(patch)
+      .eq("id", id)
+      .select("id, display_name, username, role, active, created_at")
+      .single();
+
+    if (error) {
+      console.error("staff_users update failed", error);
+      return NextResponse.json(
+        { error: `Could not update user: ${error.message}` },
+        { status: 500, headers: noStoreHeaders() },
+      );
+    }
+
+    return NextResponse.json(
+      { ok: true, user: data },
+      { headers: noStoreHeaders() },
+    );
+  } catch (err) {
+    console.error(err);
+    const message = err instanceof Error ? err.message : "Unknown server error";
+    return NextResponse.json(
+      { error: message },
+      { status: 500, headers: noStoreHeaders() },
+    );
+  }
+}
+
+/** Owner delete staff user. */
+export async function DELETE(request: Request) {
+  const session = await requireOwner(request);
+  if (!session) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: noStoreHeaders() },
+    );
+  }
+
+  const { searchParams } = new URL(request.url);
+  const id = (searchParams.get("id") || "").trim();
+  if (!id) {
+    return NextResponse.json(
+      { error: "id query parameter is required" },
+      { status: 400, headers: noStoreHeaders() },
+    );
+  }
+
+  try {
+    const supabase = getSupabaseAdminClient();
+    const { error } = await supabase.from("staff_users").delete().eq("id", id);
+    if (error) {
+      console.error("staff_users delete failed", error);
+      return NextResponse.json(
+        { error: `Could not delete user: ${error.message}` },
+        { status: 500, headers: noStoreHeaders() },
+      );
+    }
+    return NextResponse.json({ ok: true }, { headers: noStoreHeaders() });
+  } catch (err) {
+    console.error(err);
+    const message = err instanceof Error ? err.message : "Unknown server error";
+    return NextResponse.json(
+      { error: message },
+      { status: 500, headers: noStoreHeaders() },
+    );
+  }
+}

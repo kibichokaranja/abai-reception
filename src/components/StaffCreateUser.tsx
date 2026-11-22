@@ -22,6 +22,12 @@ export function StaffCreateUser() {
   const [listLoading, setListLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRole, setEditRole] = useState<StaffUserRole>("reception");
+  const [editActive, setEditActive] = useState(true);
+  const [editPassword, setEditPassword] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadUsers = useCallback(async () => {
     setListLoading(true);
@@ -86,6 +92,75 @@ export function StaffCreateUser() {
     }
   }
 
+  function startEdit(user: StaffUserRow) {
+    setEditingId(user.id);
+    setEditName(user.display_name?.trim() || "");
+    setEditRole(user.role);
+    setEditActive(user.active);
+    setEditPassword("");
+    setMessage(null);
+    setError(null);
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+    setSavingEdit(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const body: Record<string, unknown> = {
+        id: editingId,
+        displayName: editName,
+        role: editRole,
+        active: editActive,
+      };
+      if (editPassword.trim().length > 0) {
+        body.password = editPassword;
+      }
+      const res = await fetch("/api/staff/users", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error || "Could not update user");
+      }
+      setMessage("User updated.");
+      setEditingId(null);
+      await loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update user");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function deleteUser(user: StaffUserRow) {
+    const ok = window.confirm(
+      `Delete user “${user.display_name || user.username}” (${user.username})? This cannot be undone.`,
+    );
+    if (!ok) return;
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch(
+        `/api/staff/users?id=${encodeURIComponent(user.id)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error || "Could not delete user");
+      }
+      setMessage(`Deleted ${user.username}.`);
+      if (editingId === user.id) setEditingId(null);
+      await loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete user");
+    }
+  }
+
   return (
     <section
       aria-label="Create user"
@@ -93,11 +168,11 @@ export function StaffCreateUser() {
     >
       <div>
         <h2 className="font-display text-2xl font-semibold text-abai-navy">
-          Create user
+          Staff users
         </h2>
         <p className="mt-1 text-sm text-abai-muted">
-          Owner-only. Name + username + password; roles: owner, management,
-          reception.
+          Owner-only. Create, edit, or delete users. Roles: owner, management,
+          staff desk.
         </p>
       </div>
 
@@ -186,18 +261,19 @@ export function StaffCreateUser() {
               <th className="px-3 py-2 font-medium">Role</th>
               <th className="px-3 py-2 font-medium">Active</th>
               <th className="px-3 py-2 font-medium">Created</th>
+              <th className="px-3 py-2 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
             {listLoading ? (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-abai-muted">
+                <td colSpan={6} className="px-3 py-4 text-abai-muted">
                   Loading users…
                 </td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-abai-muted">
+                <td colSpan={6} className="px-3 py-4 text-abai-muted">
                   No users yet — env passwords still work as bootstrap.
                 </td>
               </tr>
@@ -208,10 +284,31 @@ export function StaffCreateUser() {
                     {u.display_name?.trim() || "—"}
                   </td>
                   <td className="px-3 py-2 text-abai-ink">{u.username}</td>
-                  <td className="px-3 py-2 capitalize">{u.role}</td>
+                  <td className="px-3 py-2 capitalize">
+                    {STAFF_USER_ROLES.find((r) => r.value === u.role)?.label ??
+                      u.role}
+                  </td>
                   <td className="px-3 py-2">{u.active ? "Yes" : "No"}</td>
                   <td className="px-3 py-2 text-abai-muted">
                     {new Date(u.created_at).toLocaleString("en-KE")}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(u)}
+                        className="text-xs font-medium text-abai-navy underline-offset-2 hover:underline"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void deleteUser(u)}
+                        className="text-xs font-medium text-red-800 underline-offset-2 hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -219,6 +316,77 @@ export function StaffCreateUser() {
           </tbody>
         </table>
       </div>
+
+      {editingId ? (
+        <div className="space-y-3 rounded-lg border border-abai-navy/15 bg-abai-navy/[0.02] p-4">
+          <h3 className="font-medium text-abai-navy">Edit user</h3>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="space-y-1 text-sm">
+              <span className="font-medium text-abai-navy">Name</span>
+              <input
+                type="text"
+                minLength={2}
+                maxLength={120}
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="block min-h-10 rounded-lg border border-abai-navy/15 px-3"
+              />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="font-medium text-abai-navy">Role</span>
+              <select
+                value={editRole}
+                onChange={(e) => setEditRole(e.target.value as StaffUserRole)}
+                className="block min-h-10 rounded-lg border border-abai-navy/15 px-3"
+              >
+                {STAFF_USER_ROLES.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex min-h-10 items-center gap-2 text-sm font-medium text-abai-navy">
+              <input
+                type="checkbox"
+                checked={editActive}
+                onChange={(e) => setEditActive(e.target.checked)}
+                className="size-4 accent-abai-gold"
+              />
+              Active
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="font-medium text-abai-navy">
+                New password (optional)
+              </span>
+              <input
+                type="password"
+                minLength={8}
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                className="block min-h-10 rounded-lg border border-abai-navy/15 px-3"
+                autoComplete="new-password"
+                placeholder="Leave blank to keep"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={savingEdit}
+              onClick={() => void saveEdit()}
+              className="min-h-10 rounded-lg bg-abai-navy px-4 text-sm font-medium text-white disabled:opacity-70"
+            >
+              {savingEdit ? "Saving…" : "Save changes"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingId(null)}
+              className="min-h-10 rounded-lg border border-abai-navy/20 px-4 text-sm font-medium text-abai-navy"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

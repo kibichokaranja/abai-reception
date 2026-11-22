@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { validateSubmitLocation } from "@/lib/geofence";
 import { getSupabaseAnonClient } from "@/lib/supabase";
 import { describeAnonKeySource, getSupabaseUrl } from "@/lib/supabase-env";
 import {
   COMMENT_MAX_LENGTH,
   PURPOSE_OF_VISIT_OPTIONS,
+  ROOM_NUMBER_MAX_LENGTH,
   STANDOUT_NAME_MAX_LENGTH,
   type GuestFeedbackInput,
   type PurposeOfVisit,
@@ -41,7 +43,6 @@ function parsePurposeServices(
 ): { ok: true; services: PurposeOfVisit[] | null } | { ok: false; error: string } {
   const raw = body.purpose_of_visit_services;
   if (raw === undefined || raw === null) {
-    // Legacy single purpose still accepted.
     if (body.purpose_of_visit === undefined || body.purpose_of_visit === null) {
       return { ok: true, services: null };
     }
@@ -88,6 +89,15 @@ function debugPayload() {
 }
 
 function migrationHint(message: string | undefined, code: string | undefined): string {
+  if (/approval_status/i.test(message ?? "")) {
+    return " Run supabase/migrations/20260335_guest_feedback_approval.sql in the Supabase SQL Editor, then Redeploy.";
+  }
+  if (/room_number/i.test(message ?? "")) {
+    return " Run supabase/migrations/20260334_guest_feedback_room_number.sql in the Supabase SQL Editor, then Redeploy.";
+  }
+  if (/submit_lat|submit_lng/i.test(message ?? "")) {
+    return " Run supabase/migrations/20260337_guest_feedback_geofence_coords.sql in the Supabase SQL Editor, then Redeploy.";
+  }
   if (/purpose_of_visit_services/i.test(message ?? "")) {
     return " Run supabase/migrations/20260329_purpose_services_array.sql in the Supabase SQL Editor, then Redeploy.";
   }
@@ -119,7 +129,8 @@ function isSurveyV2Body(body: Record<string, unknown>): boolean {
     body.overall_experience !== undefined ||
     body.value_for_money !== undefined ||
     body.purpose_of_visit_services !== undefined ||
-    body.first_visit !== undefined
+    body.first_visit !== undefined ||
+    body.room_number !== undefined
   );
 }
 
@@ -139,7 +150,7 @@ async function insertRow(row: Record<string, unknown>) {
       { status: 500 },
     );
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, pending: true });
 }
 
 function parseIdentity(body: Record<string, unknown>) {
@@ -162,6 +173,25 @@ function parseIdentity(body: Record<string, unknown>) {
   return { guest_name, phone, comment } as const;
 }
 
+function parseRoomNumber(
+  body: Record<string, unknown>,
+): { ok: true; value: string | null } | { ok: false; error: string } {
+  if (body.room_number === undefined || body.room_number === null) {
+    return { ok: true, value: null };
+  }
+  if (typeof body.room_number !== "string") {
+    return { ok: false, error: "Room number must be text or omitted" };
+  }
+  const trimmed = body.room_number.trim();
+  if (trimmed.length > ROOM_NUMBER_MAX_LENGTH) {
+    return {
+      ok: false,
+      error: `Room number must be ${ROOM_NUMBER_MAX_LENGTH} characters or fewer`,
+    };
+  }
+  return { ok: true, value: trimmed.length > 0 ? trimmed : null };
+}
+
 function parseOptionalRatingField(
   body: Record<string, unknown>,
   key: string,
@@ -177,10 +207,28 @@ function parseOptionalRatingField(
   return { ok: true, value: value as number | null };
 }
 
+function requireGeofence(body: Record<string, unknown>) {
+  const check = validateSubmitLocation(body.submit_lat, body.submit_lng);
+  if (!check.ok) {
+    return { error: check.error } as const;
+  }
+  return { lat: check.lat, lng: check.lng } as const;
+}
+
 async function handleV2(body: Record<string, unknown>) {
+  const location = requireGeofence(body);
+  if ("error" in location) {
+    return NextResponse.json({ error: location.error }, { status: 403 });
+  }
+
   const identity = parseIdentity(body);
   if ("error" in identity) {
     return NextResponse.json({ error: identity.error }, { status: 400 });
+  }
+
+  const roomParsed = parseRoomNumber(body);
+  if (!roomParsed.ok) {
+    return NextResponse.json({ error: roomParsed.error }, { status: 400 });
   }
 
   const ratingKeys: { key: string; label: string }[] = [
@@ -256,11 +304,10 @@ async function handleV2(body: Record<string, unknown>) {
     );
   }
 
-  // New rows: write v2 columns; services array preferred; leave legacy purpose null
-  // unless a single legacy value was the only input.
   return insertRow({
     guest_name: identity.guest_name,
     phone: identity.phone,
+    room_number: roomParsed.value,
     visit_date: todayVisitDate(),
     first_visit,
     purpose_of_visit: services && services.length === 1 ? services[0] : null,
@@ -282,10 +329,19 @@ async function handleV2(body: Record<string, unknown>) {
     value_for_money,
     recommend_score: ratingValues.recommend_score,
     comment: identity.comment,
+    approval_status: "pending",
+    is_irrelevant: false,
+    submit_lat: location.lat,
+    submit_lng: location.lng,
   });
 }
 
 async function handleLegacy(body: Partial<GuestFeedbackInput> & Record<string, unknown>) {
+  const location = requireGeofence(body);
+  if ("error" in location) {
+    return NextResponse.json({ error: location.error }, { status: 403 });
+  }
+
   const identity = parseIdentity(body);
   if ("error" in identity) {
     return NextResponse.json({ error: identity.error }, { status: 400 });
@@ -322,6 +378,10 @@ async function handleLegacy(body: Partial<GuestFeedbackInput> & Record<string, u
     staff_experience: body.staff_experience,
     comment: identity.comment,
     recommend: body.recommend,
+    approval_status: "pending",
+    is_irrelevant: false,
+    submit_lat: location.lat,
+    submit_lng: location.lng,
   });
 }
 

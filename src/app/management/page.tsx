@@ -14,6 +14,7 @@ export default async function ManagementPage() {
           title="Guest Feedback — Management"
           canExport={false}
           canManageUsers={false}
+          canModerate
         />
       ) : (
         <StaffLoginForm

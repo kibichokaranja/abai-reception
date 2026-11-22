@@ -82,17 +82,20 @@ export async function GET(request: Request) {
   const fromParam = parseIsoDate(searchParams.get("from"));
   const toParam = parseIsoDate(searchParams.get("to"));
   const lowOnly = searchParams.get("low") === "1";
+  const hideIrrelevant = searchParams.get("hideIrrelevant") === "1";
 
   try {
     const supabase = getSupabaseAdminClient();
     let query = supabase
       .from("guest_feedback")
       .select(SURVEY_V2_SELECT_COLUMNS)
+      .eq("approval_status", "approved")
       .order("created_at", { ascending: false })
       .limit(500);
 
     if (fromParam) query = query.gte("visit_date", fromParam);
     if (toParam) query = query.lte("visit_date", toParam);
+    if (hideIrrelevant) query = query.eq("is_irrelevant", false);
     if (lowOnly) query = query.or(lowScoreOrFilter(2.5));
 
     const { data, error } = await query;
@@ -106,19 +109,20 @@ export async function GET(request: Request) {
 
     const rows = (data ?? []) as unknown as GuestFeedbackRow[];
     const stamp = new Date().toISOString().slice(0, 10);
+    const meta = { from: fromParam, to: toParam };
 
     if (format === "pdf") {
-      const buffer = buildPdfBuffer(rows);
+      const buffer = buildPdfBuffer(rows, meta);
       return new NextResponse(buffer, {
         status: 200,
         headers: noStoreHeaders({
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="abai-feedback-${stamp}.pdf"`,
+          "Content-Disposition": `attachment; filename="abai-feedback-summary-${stamp}.pdf"`,
         }),
       });
     }
 
-    const buffer = await buildExcelBuffer(rows);
+    const buffer = await buildExcelBuffer(rows, meta);
     return new NextResponse(buffer, {
       status: 200,
       headers: noStoreHeaders({
