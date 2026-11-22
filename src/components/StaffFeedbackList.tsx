@@ -152,33 +152,65 @@ function FeedbackRow({
   row,
   showGuestDetails,
   showComments,
+  canModerate,
+  onAction,
 }: {
   row: GuestFeedbackRow;
   showGuestDetails: boolean;
   showComments: boolean;
+  canModerate: boolean;
+  onAction: (
+    id: string,
+    action: "approve" | "reject" | "mark_irrelevant" | "clear_irrelevant",
+  ) => void;
 }) {
   const [open, setOpen] = useState(false);
   const overall = overallForRow(row);
   const v2 = isSurveyV2Row(row);
   const visit = visitColumnLabel(row);
   const colSpan =
-    6 + (showGuestDetails ? 2 : 0) + (showComments ? 1 : 0);
+    6 + (showGuestDetails ? 3 : 0) + (showComments ? 1 : 0) + (canModerate ? 1 : 0);
 
   return (
     <>
-      <tr className="border-t border-abai-navy/10 align-top">
+      <tr
+        className={`border-t border-abai-navy/10 align-top ${
+          row.is_irrelevant ? "bg-abai-navy/[0.03] opacity-80" : ""
+        }`}
+      >
         <td className="whitespace-nowrap px-3 py-3 text-abai-ink">
           <span className="block font-medium">{visit.datePart}</span>
           {visit.timePart ? (
             <span className="block text-xs text-abai-muted">{visit.timePart}</span>
           ) : null}
+          {row.is_irrelevant ? (
+            <span className="mt-1 inline-block text-xs font-medium text-abai-muted">
+              Irrelevant
+            </span>
+          ) : null}
         </td>
         {showGuestDetails ? (
-          <td className="whitespace-nowrap px-3 py-3">
-            {row.phone.trim() ? row.phone : (
-              <span className="text-abai-muted">—</span>
-            )}
-          </td>
+          <>
+            <td className="max-w-[10rem] px-3 py-3">
+              {row.guest_name?.trim() ? (
+                <span className="font-medium text-abai-ink">
+                  {row.guest_name.trim()}
+                </span>
+              ) : (
+                <span className="text-abai-muted">—</span>
+              )}
+            </td>
+            <td className="whitespace-nowrap px-3 py-3">
+              {row.phone?.trim() ? row.phone : (
+                <span className="text-abai-muted">—</span>
+              )}
+            </td>
+            <td className="whitespace-nowrap px-3 py-3">
+              {row.room_number?.trim() ? row.room_number : (
+                <span className="text-abai-muted">—</span>
+              )}
+            </td>
+          </>
         ) : null}
         <td className="whitespace-nowrap px-3 py-3">
           {firstVisitLabel(row.first_visit)}
@@ -196,11 +228,6 @@ function FeedbackRow({
         <td className="px-3 py-3 capitalize">
           {row.value_for_money ?? "—"}
         </td>
-        {showGuestDetails ? (
-          <td className="px-3 py-3">
-            <TextCell text={row.standout_staff_name} />
-          </td>
-        ) : null}
         {showComments ? (
           <td className="px-3 py-3">
             <TextCell text={row.comment} />
@@ -216,11 +243,58 @@ function FeedbackRow({
             {open ? "Hide" : "Scores"}
           </button>
         </td>
+        {canModerate ? (
+          <td className="px-3 py-3">
+            <div className="flex flex-col gap-1">
+              {row.approval_status === "pending" ? (
+                <>
+                  <button
+                    type="button"
+                    className="text-left text-xs font-medium text-emerald-800 underline-offset-2 hover:underline"
+                    onClick={() => onAction(row.id, "approve")}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    className="text-left text-xs font-medium text-red-800 underline-offset-2 hover:underline"
+                    onClick={() => onAction(row.id, "reject")}
+                  >
+                    Reject
+                  </button>
+                </>
+              ) : row.is_irrelevant ? (
+                <button
+                  type="button"
+                  className="text-left text-xs font-medium text-abai-navy underline-offset-2 hover:underline"
+                  onClick={() => onAction(row.id, "clear_irrelevant")}
+                >
+                  Include in analytics
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="text-left text-xs font-medium text-abai-muted underline-offset-2 hover:underline"
+                  onClick={() => onAction(row.id, "mark_irrelevant")}
+                  title="Mark as low-signal / irrelevant so analytics can exclude it"
+                >
+                  Mark irrelevant
+                </button>
+              )}
+            </div>
+          </td>
+        ) : null}
       </tr>
       {open ? (
         <tr className="border-t border-abai-navy/5 bg-white/70">
           <td colSpan={colSpan} className="px-3 py-4">
             <DetailScores row={row} />
+            {showGuestDetails && row.standout_staff_name?.trim() ? (
+              <p className="mt-3 text-sm text-abai-ink">
+                <span className="text-abai-muted">Standout: </span>
+                {row.standout_staff_name.trim()}
+              </p>
+            ) : null}
           </td>
         </tr>
       ) : null}
@@ -246,6 +320,8 @@ type Props = {
   canExport?: boolean;
   canManageUsers?: boolean;
   canEditPermissions?: boolean;
+  /** Owner + management can approve pending and mark irrelevant. */
+  canModerate?: boolean;
 };
 
 export function StaffFeedbackList({
@@ -253,19 +329,27 @@ export function StaffFeedbackList({
   canExport = false,
   canManageUsers = false,
   canEditPermissions = false,
+  canModerate = false,
 }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState<GuestFeedbackRow[]>([]);
   const [statsRows, setStatsRows] = useState<GuestFeedbackRow[]>([]);
   const [analytics, setAnalytics] = useState<StaffAnalytics | null>(null);
   const [permissions, setPermissions] =
-    useState<DashboardPermissions>(OWNER_DEFAULTS);
+    useState<DashboardPermissions | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
+  const [hideIrrelevant, setHideIrrelevant] = useState(true);
+  const [pendingMode, setPendingMode] = useState(false);
   const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
+
+  const effectivePermissions = permissions ?? OWNER_DEFAULTS;
+  const showGuestDetails =
+    canManageUsers || effectivePermissions.show_guest_details;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -275,6 +359,8 @@ export function StaffFeedbackList({
       if (fromDate) params.set("from", fromDate);
       if (toDate) params.set("to", toDate);
       if (lowOnly) params.set("low", "1");
+      if (hideIrrelevant && !pendingMode) params.set("hideIrrelevant", "1");
+      if (pendingMode) params.set("pending", "1");
       const res = await fetch(`/api/staff/feedback?${params.toString()}`, {
         credentials: "include",
         cache: "no-store",
@@ -284,6 +370,7 @@ export function StaffFeedbackList({
         rowsForStats?: GuestFeedbackRow[];
         analytics?: StaffAnalytics | null;
         permissions?: DashboardPermissions;
+        role?: string;
         error?: string;
         debug?: {
           urlHost?: string | null;
@@ -312,13 +399,14 @@ export function StaffFeedbackList({
       setStatsRows(data.rowsForStats ?? list);
       setAnalytics(data.analytics ?? null);
       if (data.permissions) setPermissions(data.permissions);
+      if (data.role) setRole(data.role);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
       setAnalytics(null);
     } finally {
       setLoading(false);
     }
-  }, [fromDate, toDate, lowOnly]);
+  }, [fromDate, toDate, lowOnly, hideIrrelevant, pendingMode]);
 
   useEffect(() => {
     void load();
@@ -326,13 +414,24 @@ export function StaffFeedbackList({
 
   const countLabel = useMemo(() => {
     if (loading) return "Loading…";
-    if (!permissions.show_feedback_list && analytics) {
+    if (pendingMode) {
+      return `${rows.length} pending`;
+    }
+    if (!effectivePermissions.show_feedback_list && analytics) {
       return `${analytics.total} response${analytics.total === 1 ? "" : "s"}`;
     }
     return `${rows.length} response${rows.length === 1 ? "" : "s"}`;
-  }, [loading, rows.length, permissions.show_feedback_list, analytics]);
+  }, [
+    loading,
+    rows.length,
+    effectivePermissions.show_feedback_list,
+    analytics,
+    pendingMode,
+  ]);
 
-  const allowExport = canExport || permissions.show_export;
+  const allowExport = canExport || effectivePermissions.show_export;
+  const moderate =
+    canModerate || role === "owner" || role === "management";
 
   async function logout() {
     await fetch("/api/staff/logout", {
@@ -351,6 +450,7 @@ export function StaffFeedbackList({
       if (fromDate) params.set("from", fromDate);
       if (toDate) params.set("to", toDate);
       if (lowOnly) params.set("low", "1");
+      if (hideIrrelevant) params.set("hideIrrelevant", "1");
       const res = await fetch(`/api/staff/export?${params.toString()}`, {
         credentials: "include",
         cache: "no-store",
@@ -365,7 +465,7 @@ export function StaffFeedbackList({
       a.href = url;
       a.download =
         format === "pdf"
-          ? `abai-feedback-${new Date().toISOString().slice(0, 10)}.pdf`
+          ? `abai-feedback-summary-${new Date().toISOString().slice(0, 10)}.pdf`
           : `abai-feedback-${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(a);
       a.click();
@@ -378,10 +478,33 @@ export function StaffFeedbackList({
     }
   }
 
+  async function onModerate(
+    id: string,
+    action: "approve" | "reject" | "mark_irrelevant" | "clear_irrelevant",
+  ) {
+    setError(null);
+    try {
+      const res = await fetch("/api/staff/feedback", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error || "Could not update feedback");
+      }
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update feedback");
+    }
+  }
+
   const tableColCount =
     6 +
-    (permissions.show_guest_details ? 2 : 0) +
-    (permissions.show_comments ? 1 : 0);
+    (showGuestDetails ? 3 : 0) +
+    (effectivePermissions.show_comments ? 1 : 0) +
+    (moderate ? 1 : 0);
 
   return (
     <div className="mx-auto max-w-none space-y-6 px-4 py-8 lg:px-6">
@@ -401,11 +524,39 @@ export function StaffFeedbackList({
         </button>
       </div>
 
-      {(permissions.show_date_filters ||
-        permissions.show_low_score_filter ||
-        allowExport) && (
+      {moderate ? (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setPendingMode(false)}
+            className={`min-h-10 rounded-lg px-4 text-sm font-medium ${
+              !pendingMode
+                ? "bg-abai-navy text-white"
+                : "border border-abai-navy/20 text-abai-navy hover:bg-white"
+            }`}
+          >
+            Approved
+          </button>
+          <button
+            type="button"
+            onClick={() => setPendingMode(true)}
+            className={`min-h-10 rounded-lg px-4 text-sm font-medium ${
+              pendingMode
+                ? "bg-abai-navy text-white"
+                : "border border-abai-navy/20 text-abai-navy hover:bg-white"
+            }`}
+          >
+            Pending approval
+          </button>
+        </div>
+      ) : null}
+
+      {(effectivePermissions.show_date_filters ||
+        effectivePermissions.show_low_score_filter ||
+        allowExport ||
+        moderate) && (
         <div className="flex flex-wrap items-end gap-3 rounded-xl border border-abai-navy/10 bg-white p-4">
-          {permissions.show_date_filters ? (
+          {effectivePermissions.show_date_filters && !pendingMode ? (
             <>
               <label className="space-y-1 text-sm">
                 <span className="font-medium text-abai-navy">From</span>
@@ -427,7 +578,7 @@ export function StaffFeedbackList({
               </label>
             </>
           ) : null}
-          {permissions.show_low_score_filter ? (
+          {effectivePermissions.show_low_score_filter && !pendingMode ? (
             <label className="flex min-h-10 items-center gap-2 text-sm font-medium text-abai-navy">
               <input
                 type="checkbox"
@@ -438,6 +589,17 @@ export function StaffFeedbackList({
               Low scores only (≤2.5)
             </label>
           ) : null}
+          {moderate && !pendingMode ? (
+            <label className="flex min-h-10 items-center gap-2 text-sm font-medium text-abai-navy">
+              <input
+                type="checkbox"
+                checked={hideIrrelevant}
+                onChange={(e) => setHideIrrelevant(e.target.checked)}
+                className="size-4 accent-abai-gold"
+              />
+              Hide irrelevant from analytics
+            </label>
+          ) : null}
           <button
             type="button"
             onClick={() => void load()}
@@ -445,7 +607,7 @@ export function StaffFeedbackList({
           >
             Refresh
           </button>
-          {allowExport ? (
+          {allowExport && !pendingMode ? (
             <>
               <button
                 type="button"
@@ -461,9 +623,17 @@ export function StaffFeedbackList({
                 onClick={() => void downloadExport("pdf")}
                 className="min-h-10 rounded-lg border border-abai-navy/20 px-4 text-sm font-medium text-abai-navy hover:bg-white disabled:opacity-60"
               >
-                {exporting === "pdf" ? "Exporting…" : "Export PDF"}
+                {exporting === "pdf" ? "Exporting…" : "Export PDF summary"}
               </button>
             </>
+          ) : null}
+          {moderate && !pendingMode ? (
+            <p className="basis-full text-xs text-abai-muted">
+              Mark a review <strong>irrelevant</strong> when it is blank,
+              off-topic, or low-signal. With “Hide irrelevant from analytics”
+              on, those rows stay in the table (dimmed) but are excluded from
+              averages, carousel, and exports.
+            </p>
           ) : null}
         </div>
       )}
@@ -474,7 +644,7 @@ export function StaffFeedbackList({
         </p>
       ) : null}
 
-      {!error && permissions.show_analytics ? (
+      {!error && !pendingMode && effectivePermissions.show_analytics ? (
         <StaffAnalyticsSummary
           analytics={analytics}
           loading={loading}
@@ -483,12 +653,15 @@ export function StaffFeedbackList({
       ) : null}
 
       {!error &&
-      permissions.show_category_averages &&
-      !permissions.show_analytics ? (
+      !pendingMode &&
+      effectivePermissions.show_category_averages &&
+      !effectivePermissions.show_analytics ? (
         <CategoryAveragesPanel analytics={analytics} loading={loading} />
       ) : null}
 
-      {!error && permissions.show_question_carousel ? (
+      {!error &&
+      !pendingMode &&
+      effectivePermissions.show_question_carousel ? (
         <QuestionCarousel
           rows={statsRows.length > 0 ? statsRows : rows}
           analytics={analytics}
@@ -499,27 +672,31 @@ export function StaffFeedbackList({
       {canManageUsers ? <StaffCreateUser /> : null}
       {canEditPermissions ? <OwnerPermissionsEditor /> : null}
 
-      {permissions.show_feedback_list ? (
+      {(effectivePermissions.show_feedback_list || pendingMode) && (
         <div className="overflow-x-auto rounded-xl border border-abai-navy/10 bg-white">
           <table className="min-w-full text-left text-sm">
             <thead className="bg-abai-navy text-white">
               <tr>
                 <th className="px-3 py-3 font-medium">Visit</th>
-                {permissions.show_guest_details ? (
-                  <th className="px-3 py-3 font-medium">Phone</th>
+                {showGuestDetails ? (
+                  <>
+                    <th className="px-3 py-3 font-medium">Guest</th>
+                    <th className="px-3 py-3 font-medium">Phone</th>
+                    <th className="px-3 py-3 font-medium">Room</th>
+                  </>
                 ) : null}
                 <th className="px-3 py-3 font-medium">First visit</th>
                 <th className="px-3 py-3 font-medium">Services</th>
                 <th className="px-3 py-3 font-medium">Overall</th>
                 <th className="px-3 py-3 font-medium">Recommend</th>
                 <th className="px-3 py-3 font-medium">Value</th>
-                {permissions.show_guest_details ? (
-                  <th className="px-3 py-3 font-medium">Standout</th>
-                ) : null}
-                {permissions.show_comments ? (
+                {effectivePermissions.show_comments ? (
                   <th className="px-3 py-3 font-medium">Comment</th>
                 ) : null}
                 <th className="px-3 py-3 font-medium">Detail</th>
+                {moderate ? (
+                  <th className="px-3 py-3 font-medium">Actions</th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -529,7 +706,9 @@ export function StaffFeedbackList({
                     colSpan={tableColCount}
                     className="px-3 py-8 text-center text-abai-muted"
                   >
-                    No feedback matches these filters.
+                    {pendingMode
+                      ? "No pending submissions."
+                      : "No feedback matches these filters."}
                   </td>
                 </tr>
               ) : null}
@@ -537,14 +716,16 @@ export function StaffFeedbackList({
                 <FeedbackRow
                   key={row.id}
                   row={row}
-                  showGuestDetails={permissions.show_guest_details}
-                  showComments={permissions.show_comments}
+                  showGuestDetails={showGuestDetails}
+                  showComments={effectivePermissions.show_comments}
+                  canModerate={moderate}
+                  onAction={onModerate}
                 />
               ))}
             </tbody>
           </table>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

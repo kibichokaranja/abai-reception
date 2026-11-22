@@ -10,7 +10,7 @@ import {
 
 const ROLES: { value: DashboardRole; label: string }[] = [
   { value: "management", label: "Management" },
-  { value: "reception", label: "Reception" },
+  { value: "reception", label: "Staff desk" },
 ];
 
 export function OwnerPermissionsEditor() {
@@ -103,14 +103,32 @@ export function OwnerPermissionsEditor() {
       if (!res.ok) {
         throw new Error(data.error || "Could not save permissions");
       }
-      if (data.permissions) {
-        setByRole((prev) =>
-          prev
-            ? { ...prev, [activeRole]: data.permissions as DashboardPermissions }
-            : prev,
-        );
+      // Always reload from server so refresh/persistence matches what was saved.
+      const res2 = await fetch("/api/staff/permissions", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data2 = (await res2.json()) as {
+        permissions?: DashboardPermissions[];
+        error?: string;
+      };
+      if (!res2.ok) {
+        throw new Error(data2.error || "Saved but could not reload permissions");
       }
-      setMessage(`Saved ${activeRole} dashboard visibility.`);
+      const map = {
+        management: data2.permissions?.find((p) => p.role === "management"),
+        reception: data2.permissions?.find((p) => p.role === "reception"),
+      };
+      if (!map.management || !map.reception) {
+        throw new Error("Permissions incomplete after save — run 20260332 migration");
+      }
+      setByRole({
+        management: map.management,
+        reception: map.reception,
+      });
+      const roleLabel =
+        activeRole === "reception" ? "Staff desk" : "Management";
+      setMessage(`Saved ${roleLabel} dashboard visibility.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save");
     } finally {
@@ -130,8 +148,8 @@ export function OwnerPermissionsEditor() {
           Dashboard visibility
         </h2>
         <p className="mt-1 text-sm text-abai-muted">
-          Owner-only. Choose what management and reception see on their
-          dashboards.
+          Owner-only. Choose what management and staff desk see on their
+          dashboards. Changes persist across refresh.
         </p>
       </div>
 
@@ -184,7 +202,7 @@ export function OwnerPermissionsEditor() {
           {activeRole === "reception" ? (
             <p className="text-xs text-abai-muted">
               Question carousel is available on owner and management only — it
-              cannot be enabled for reception.
+              cannot be enabled for staff desk.
             </p>
           ) : null}
         </div>

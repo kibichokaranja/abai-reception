@@ -26,7 +26,7 @@ export function QuestionCarousel({ rows, analytics, loading }: Props) {
   );
   const [index, setIndex] = useState(0);
   const total = slides.length;
-  const current = slides[Math.min(index, total - 1)];
+  const current = slides[Math.min(index, Math.max(total - 1, 0))];
 
   if (loading && rows.length === 0) {
     return (
@@ -45,8 +45,18 @@ export function QuestionCarousel({ rows, analytics, loading }: Props) {
     setIndex((i) => (i + delta + total) % total);
   }
 
-  const { slide, average, count, weak, choiceMix, firstVisitYes, firstVisitNo, serviceCounts } =
-    current;
+  const {
+    slide,
+    average,
+    count,
+    weak,
+    choiceMix,
+    firstVisitYes,
+    firstVisitNo,
+    serviceCounts,
+    ratingBuckets,
+    textSamples,
+  } = current;
 
   return (
     <section
@@ -56,7 +66,7 @@ export function QuestionCarousel({ rows, analytics, loading }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-abai-navy/10 bg-abai-navy px-4 py-3 text-white">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-abai-gold">
-            Question {slide.number} of 17
+            Question {slide.number} of {SURVEY_QUESTION_SLIDES.length}
           </p>
           <h2 className="font-display text-xl font-semibold sm:text-2xl">
             {slide.shortLabel}
@@ -69,7 +79,7 @@ export function QuestionCarousel({ rows, analytics, loading }: Props) {
             className="min-h-10 rounded-lg border border-white/30 px-3 text-sm font-medium hover:bg-white/10"
             aria-label="Previous question"
           >
-            Prev
+            Previous
           </button>
           <button
             type="button"
@@ -86,25 +96,40 @@ export function QuestionCarousel({ rows, analytics, loading }: Props) {
         <p className="text-base text-abai-ink sm:text-lg">{slide.fullLabel}</p>
 
         {slide.kind === "rating" ? (
-          <div>
-            <p
-              className={`font-display text-4xl font-semibold text-abai-navy ${
-                weak ? "underline decoration-abai-gold decoration-4 underline-offset-4" : ""
-              }`}
-            >
-              {slide.key === "recommend_score"
-                ? formatRecommendAverage(average)
-                : formatAvg(average)}
-              {slide.key !== "recommend_score" && average != null ? (
-                <span className="ml-2 text-lg font-sans font-normal text-abai-muted">
-                  / 5 avg
-                </span>
-              ) : null}
-            </p>
-            <p className="mt-1 text-sm text-abai-muted">
-              {count} response{count === 1 ? "" : "s"}
-              {weak ? " · needs attention (≤2.5)" : ""}
-            </p>
+          <div className="space-y-4">
+            <div>
+              <p
+                className={`font-display text-4xl font-semibold text-abai-navy ${
+                  weak ? "underline decoration-abai-gold decoration-4 underline-offset-4" : ""
+                }`}
+              >
+                {slide.key === "recommend_score"
+                  ? formatRecommendAverage(average)
+                  : formatAvg(average)}
+                {slide.key !== "recommend_score" && average != null ? (
+                  <span className="ml-2 text-lg font-sans font-normal text-abai-muted">
+                    / 5 avg
+                  </span>
+                ) : null}
+              </p>
+              <p className="mt-1 text-sm text-abai-muted">
+                {count} response{count === 1 ? "" : "s"}
+                {weak ? " · needs attention (≤2.5)" : ""}
+              </p>
+            </div>
+            <ul className="grid gap-2 sm:grid-cols-5">
+              {ratingBuckets.map((bucket) => (
+                <li
+                  key={bucket.value}
+                  className="rounded-lg border border-abai-navy/10 px-3 py-2 text-center"
+                >
+                  <p className="text-xs text-abai-muted">{bucket.label}</p>
+                  <p className="font-display text-2xl font-semibold text-abai-navy">
+                    {bucket.count}
+                  </p>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
 
@@ -123,18 +148,31 @@ export function QuestionCarousel({ rows, analytics, loading }: Props) {
         ) : null}
 
         {slide.kind === "first_visit" ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border border-abai-navy/10 px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-abai-muted">Yes</p>
-              <p className="font-display text-3xl font-semibold text-abai-navy">
+          <div className="space-y-3">
+            <div className="rounded-lg border border-abai-navy/10 bg-abai-navy/[0.03] px-4 py-4">
+              <p className="text-xs uppercase tracking-wide text-abai-muted">
+                Yes count
+              </p>
+              <p className="font-display text-4xl font-semibold text-abai-navy">
                 {firstVisitYes}
               </p>
-            </div>
-            <div className="rounded-lg border border-abai-navy/10 px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-abai-muted">No</p>
-              <p className="font-display text-3xl font-semibold text-abai-navy">
-                {firstVisitNo}
+              <p className="mt-1 text-sm text-abai-muted">
+                of {firstVisitYes + firstVisitNo} answered
               </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-abai-navy/10 px-4 py-3">
+                <p className="text-xs uppercase tracking-wide text-abai-muted">Yes</p>
+                <p className="font-display text-3xl font-semibold text-abai-navy">
+                  {firstVisitYes}
+                </p>
+              </div>
+              <div className="rounded-lg border border-abai-navy/10 px-4 py-3">
+                <p className="text-xs uppercase tracking-wide text-abai-muted">No</p>
+                <p className="font-display text-3xl font-semibold text-abai-navy">
+                  {firstVisitNo}
+                </p>
+              </div>
             </div>
           </div>
         ) : null}
@@ -151,6 +189,23 @@ export function QuestionCarousel({ rows, analytics, loading }: Props) {
                 >
                   <span className="capitalize text-abai-ink">{s.label}</span>
                   <span className="font-semibold text-abai-navy">{s.count}</span>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : null}
+
+        {slide.kind === "text" ? (
+          textSamples.length === 0 ? (
+            <p className="text-sm text-abai-muted">No answers yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {textSamples.map((text, i) => (
+                <li
+                  key={`${i}-${text.slice(0, 12)}`}
+                  className="rounded-lg border border-abai-navy/10 px-3 py-2 text-sm text-abai-ink"
+                >
+                  {text}
                 </li>
               ))}
             </ul>

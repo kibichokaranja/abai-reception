@@ -3,18 +3,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CategoryAveragesPanel } from "@/components/CategoryAveragesPanel";
+import { StaffAnalyticsSummary } from "@/components/StaffAnalyticsSummary";
 import type { DashboardPermissions } from "@/lib/dashboard-permissions";
 import { defaultPermissionsForRole } from "@/lib/dashboard-permissions";
 import type { StaffAnalytics } from "@/lib/staff-analytics";
-import type { GuestFeedbackRow } from "@/lib/types";
+import { STAFF_DESK_LABEL, type GuestFeedbackRow } from "@/lib/types";
 import { defaultReceptionVisitWindow } from "@/lib/visit-date";
 
+/**
+ * Staff desk dashboard (`/reception`).
+ * Respects owner-configured dashboard_permissions (except question carousel).
+ * Always approved-only feedback.
+ */
 export function ReceptionFeedbackList() {
   const router = useRouter();
   const [statsRows, setStatsRows] = useState<GuestFeedbackRow[]>([]);
+  const [listRows, setListRows] = useState<GuestFeedbackRow[]>([]);
   const [analytics, setAnalytics] = useState<StaffAnalytics | null>(null);
-  const [permissions, setPermissions] = useState<DashboardPermissions>(() =>
-    defaultPermissionsForRole("reception"),
+  const [permissions, setPermissions] = useState<DashboardPermissions | null>(
+    null,
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +31,8 @@ export function ReceptionFeedbackList() {
   const [toDate, setToDate] = useState(
     () => defaultReceptionVisitWindow(7).to,
   );
+
+  const effective = permissions ?? defaultPermissionsForRole("reception");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -35,6 +44,7 @@ export function ReceptionFeedbackList() {
       const res = await fetch(`/api/staff/feedback?${params.toString()}`, {
         credentials: "include",
         cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
       });
       const data = (await res.json()) as {
         feedback?: GuestFeedbackRow[];
@@ -64,7 +74,7 @@ export function ReceptionFeedbackList() {
             .join(" "),
         );
       }
-      // When list is hidden, API puts rows in rowsForStats; analytics still computed.
+      setListRows(data.feedback ?? []);
       setStatsRows(
         (data.rowsForStats && data.rowsForStats.length > 0
           ? data.rowsForStats
@@ -74,7 +84,6 @@ export function ReceptionFeedbackList() {
       if (data.permissions) {
         setPermissions({
           ...data.permissions,
-          // Hard rule: reception never shows the question carousel.
           show_question_carousel: false,
         });
       }
@@ -93,7 +102,7 @@ export function ReceptionFeedbackList() {
   const countLabel = useMemo(() => {
     if (loading) return "Loading…";
     const total = analytics?.total ?? statsRows.length;
-    return `${total} response${total === 1 ? "" : "s"}`;
+    return `${total} approved response${total === 1 ? "" : "s"}`;
   }, [loading, analytics, statsRows.length]);
 
   async function logout() {
@@ -104,15 +113,20 @@ export function ReceptionFeedbackList() {
     router.refresh();
   }
 
+  const anySection =
+    effective.show_analytics ||
+    effective.show_category_averages ||
+    effective.show_feedback_list;
+
   return (
     <div className="mx-auto max-w-none space-y-6 px-4 py-8 lg:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold text-abai-navy sm:text-4xl">
-            Reception desk
+            {STAFF_DESK_LABEL}
           </h1>
           <p className="mt-1 text-abai-muted">
-            Category averages by visit date · {countLabel}
+            Approved feedback only · {countLabel}
           </p>
         </div>
         <button
@@ -124,7 +138,7 @@ export function ReceptionFeedbackList() {
         </button>
       </div>
 
-      {permissions.show_date_filters ? (
+      {effective.show_date_filters ? (
         <div className="flex flex-wrap items-end gap-3 rounded-xl border border-abai-navy/10 bg-white p-4">
           <label className="space-y-1 text-sm">
             <span className="font-medium text-abai-navy">Visit from</span>
@@ -171,14 +185,91 @@ export function ReceptionFeedbackList() {
         </p>
       ) : null}
 
-      {!error && permissions.show_category_averages ? (
+      {!error && effective.show_analytics ? (
+        <StaffAnalyticsSummary
+          analytics={analytics}
+          loading={loading}
+          lowOnly={false}
+        />
+      ) : null}
+
+      {!error &&
+      effective.show_category_averages &&
+      !effective.show_analytics ? (
         <CategoryAveragesPanel analytics={analytics} loading={loading} />
       ) : null}
 
-      {!error && !permissions.show_category_averages ? (
+      {!error && effective.show_feedback_list ? (
+        <div className="overflow-x-auto rounded-xl border border-abai-navy/10 bg-white">
+          <table className="min-w-full text-left text-sm">
+            <thead className="bg-abai-navy text-white">
+              <tr>
+                <th className="px-3 py-3 font-medium">Visit</th>
+                {effective.show_guest_details ? (
+                  <>
+                    <th className="px-3 py-3 font-medium">Guest</th>
+                    <th className="px-3 py-3 font-medium">Phone</th>
+                    <th className="px-3 py-3 font-medium">Room</th>
+                  </>
+                ) : null}
+                <th className="px-3 py-3 font-medium">Overall</th>
+                {effective.show_comments ? (
+                  <th className="px-3 py-3 font-medium">Comment</th>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody>
+              {listRows.length === 0 && !loading ? (
+                <tr>
+                  <td
+                    colSpan={
+                      2 +
+                      (effective.show_guest_details ? 3 : 0) +
+                      (effective.show_comments ? 1 : 0)
+                    }
+                    className="px-3 py-8 text-center text-abai-muted"
+                  >
+                    No approved feedback in this date range.
+                  </td>
+                </tr>
+              ) : null}
+              {listRows.map((row) => (
+                <tr key={row.id} className="border-t border-abai-navy/10">
+                  <td className="whitespace-nowrap px-3 py-3">
+                    {row.visit_date || "—"}
+                  </td>
+                  {effective.show_guest_details ? (
+                    <>
+                      <td className="px-3 py-3">
+                        {row.guest_name?.trim() || "—"}
+                      </td>
+                      <td className="px-3 py-3">
+                        {row.phone?.trim() || "—"}
+                      </td>
+                      <td className="px-3 py-3">
+                        {row.room_number?.trim() || "—"}
+                      </td>
+                    </>
+                  ) : null}
+                  <td className="px-3 py-3">
+                    {row.overall_experience ?? row.overall_stay ?? "—"}
+                  </td>
+                  {effective.show_comments ? (
+                    <td className="max-w-[16rem] px-3 py-3">
+                      {row.comment?.trim() || "—"}
+                    </td>
+                  ) : null}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {!error && !anySection ? (
         <p className="rounded-xl border border-abai-navy/10 bg-white px-4 py-5 text-sm text-abai-muted">
-          No dashboard sections are enabled for reception. Ask the owner to
-          update visibility on /staff.
+          No dashboard sections are enabled for {STAFF_DESK_LABEL.toLowerCase()}.
+          Ask the owner to update visibility on /staff.
         </p>
       ) : null}
     </div>
