@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getDashboardPermissions } from "@/lib/dashboard-permissions";
-import { getStaffSessionFromRequest } from "@/lib/staff-auth";
+import {
+  getStaffSessionFromRequest,
+  isOwnerRole,
+} from "@/lib/staff-auth";
 import { buildExcelBuffer, buildPdfBuffer } from "@/lib/staff-export";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { SURVEY_V2_SELECT_COLUMNS, type GuestFeedbackRow } from "@/lib/types";
@@ -15,34 +18,40 @@ function parseIsoDate(value: string | null): string | null {
   return value;
 }
 
-function lowScoreOrFilter(threshold = 2.5): string {
-  const keys = [
-    "overall_stay",
-    "check_in",
-    "room_cleanliness",
-    "food_drink",
-    "spa_fitness",
-    "staff_experience",
-    "wifi_quality",
-    "cleanliness_upkeep",
-    "food_taste_quality",
-    "service_promptness",
-    "staff_friendliness",
-    "safety_security",
-    "overall_experience",
-    "recommend_score",
-    "reservation_ease",
-    "welcome_check_in",
-    "accommodation_comfort",
-    "conference_facilities",
-    "recreational_leisure",
-    "spa_experience",
-  ];
-  return keys.map((k) => `${k}.lte.${threshold}`).join(",");
+const LOW_SCORE_KEYS = [
+  "overall_stay",
+  "check_in",
+  "room_cleanliness",
+  "food_drink",
+  "spa_fitness",
+  "staff_experience",
+  "wifi_quality",
+  "cleanliness_upkeep",
+  "food_taste_quality",
+  "service_promptness",
+  "staff_friendliness",
+  "safety_security",
+  "overall_experience",
+  "recommend_score",
+  "reservation_ease",
+  "welcome_check_in",
+  "accommodation_comfort",
+  "conference_facilities",
+  "recreational_leisure",
+  "spa_experience",
+] as const;
+
+function rowHasLowScore(row: GuestFeedbackRow, threshold = 2.5): boolean {
+  for (const key of LOW_SCORE_KEYS) {
+    const value = row[key];
+    if (typeof value === "number" && value <= threshold) return true;
+  }
+  return false;
 }
 
 async function canExport(role: string): Promise<boolean> {
-  if (role === "owner") return true;
+  // Owner always entitled — never Unauthorized on export.
+  if (isOwnerRole(role)) return true;
   if (role === "management" || role === "reception") {
     const perms = await getDashboardPermissions(role);
     return perms.show_export;
@@ -96,7 +105,6 @@ export async function GET(request: Request) {
     if (fromParam) query = query.gte("visit_date", fromParam);
     if (toParam) query = query.lte("visit_date", toParam);
     if (hideIrrelevant) query = query.eq("is_irrelevant", false);
-    if (lowOnly) query = query.or(lowScoreOrFilter(2.5));
 
     const { data, error } = await query;
     if (error) {
@@ -107,7 +115,10 @@ export async function GET(request: Request) {
       );
     }
 
-    const rows = (data ?? []) as unknown as GuestFeedbackRow[];
+    let rows = (data ?? []) as unknown as GuestFeedbackRow[];
+    if (lowOnly) {
+      rows = rows.filter((row) => rowHasLowScore(row, 2.5));
+    }
     const stamp = new Date().toISOString().slice(0, 10);
     const meta = { from: fromParam, to: toParam };
 

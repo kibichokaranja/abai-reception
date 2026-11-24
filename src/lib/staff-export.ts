@@ -13,6 +13,12 @@ import {
 } from "@/lib/types";
 import { formatVisitDate } from "@/lib/visit-date";
 
+/** Abai brand colours for PDF (navy / gold / cream). */
+const ABAI_NAVY: [number, number, number] = [22, 17, 65];
+const ABAI_GOLD: [number, number, number] = [209, 167, 69];
+const ABAI_CREAM: [number, number, number] = [247, 244, 236];
+const ABAI_MUTED: [number, number, number] = [92, 88, 112];
+
 function firstVisitLabel(value: boolean | null): string {
   if (value === true) return "Yes";
   if (value === false) return "No";
@@ -95,8 +101,8 @@ function rowCells(row: GuestFeedbackRow): string[] {
     row.accommodation_comfort == null ? "" : String(row.accommodation_comfort),
     row.conference_facilities == null ? "" : String(row.conference_facilities),
     row.wifi_quality == null ? "" : String(row.wifi_quality),
-    row.recreational_leisure == null ? "" : String(row.recreational_leisure),
     row.spa_experience == null ? "" : String(row.spa_experience),
+    row.recreational_leisure == null ? "" : String(row.recreational_leisure),
     row.cleanliness_upkeep == null ? "" : String(row.cleanliness_upkeep),
     row.food_taste_quality == null ? "" : String(row.food_taste_quality),
     row.service_promptness == null ? "" : String(row.service_promptness),
@@ -124,8 +130,8 @@ const HEADERS = [
   "Accommodation",
   "Conference",
   "Wi-Fi",
-  "Leisure",
   "Spa",
+  "Leisure",
   "Cleanliness",
   "Food",
   "Service",
@@ -146,16 +152,17 @@ export async function buildExcelBuffer(
   meta: ExportMeta = {},
 ): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Abai Staff desk";
+  workbook.creator = "Abai Lodges & Spa";
   const analytics = computeStaffAnalytics(rows);
   const firstVisit = firstVisitYesCount(rows);
 
   const summary = workbook.addWorksheet("Summary");
   summary.addRow(["Abai Lodges & Spa — Guest feedback summary"]);
+  summary.addRow(["Exclusivity Redefined"]);
   summary.addRow(["Date range", dateRangeLabel(rows, meta.from, meta.to)]);
   summary.addRow(["Total responses", analytics.total]);
   summary.addRow([
-    "Overall average",
+    "Overall average (out of 5)",
     analytics.overallAvg == null ? "—" : analytics.overallAvg,
   ]);
   summary.addRow([
@@ -169,7 +176,7 @@ export async function buildExcelBuffer(
       : `${analytics.valueForMoney.yesPct}% (${analytics.valueForMoney.yes}/${analytics.valueForMoney.total})`,
   ]);
   summary.addRow([]);
-  summary.addRow(["Category", "Average", "Responses"]);
+  summary.addRow(["Category", "Average (out of 5)", "Responses"]);
   for (const cat of analytics.categories) {
     summary.addRow([
       cat.label,
@@ -186,7 +193,8 @@ export async function buildExcelBuffer(
   for (const line of topComments(rows, "complaint")) {
     summary.addRow([line]);
   }
-  summary.getRow(1).font = { bold: true };
+  summary.getRow(1).font = { bold: true, color: { argb: "FF161141" }, size: 14 };
+  summary.getRow(2).font = { italic: true, color: { argb: "FFD1A745" } };
   summary.columns = [{ width: 36 }, { width: 18 }, { width: 14 }];
 
   const sheet = workbook.addWorksheet("Responses");
@@ -194,7 +202,12 @@ export async function buildExcelBuffer(
   for (const row of rows) {
     sheet.addRow(rowCells(row));
   }
-  sheet.getRow(1).font = { bold: true };
+  sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+  sheet.getRow(1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF161141" },
+  };
   sheet.columns.forEach((col) => {
     col.width = 14;
   });
@@ -204,28 +217,51 @@ export async function buildExcelBuffer(
 }
 
 /**
- * PDF choice A — summary report only:
- * date range, totals, category averages, first-visit / value yes %, top complaints/praise.
+ * Abai-branded PDF summary:
+ * navy/gold header band, cream accents, category averages out of 5.
  */
 export function buildPdfBuffer(
   rows: GuestFeedbackRow[],
   meta: ExportMeta = {},
 ): ArrayBuffer {
   const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
   const analytics = computeStaffAnalytics(rows);
   const firstVisit = firstVisitYesCount(rows);
 
-  doc.setFontSize(16);
-  doc.text("Abai Lodges & Spa — Feedback summary", 40, 40);
+  // Brand header band
+  doc.setFillColor(...ABAI_NAVY);
+  doc.rect(0, 0, pageWidth, 72, "F");
+  doc.setFillColor(...ABAI_GOLD);
+  doc.rect(0, 72, pageWidth, 4, "F");
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.text("Abai Lodges & Spa", 40, 32);
+  doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  doc.text(`Date range: ${dateRangeLabel(rows, meta.from, meta.to)}`, 40, 60);
+  doc.setTextColor(...ABAI_GOLD);
+  doc.text("Exclusivity Redefined", 40, 48);
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.text("Guest feedback summary", 40, 64);
+
+  doc.setTextColor(...ABAI_NAVY);
+  doc.setFontSize(10);
+  let y = 100;
+  doc.text(`Date range: ${dateRangeLabel(rows, meta.from, meta.to)}`, 40, y);
+  y += 16;
   doc.text(
     `Total responses: ${analytics.total} · Overall avg: ${
-      analytics.overallAvg == null ? "—" : analytics.overallAvg.toFixed(1)
+      analytics.overallAvg == null
+        ? "—"
+        : `${analytics.overallAvg.toFixed(1)} / 5`
     }`,
     40,
-    76,
+    y,
   );
+  y += 16;
   doc.text(
     `First visit yes: ${
       firstVisit.total === 0
@@ -233,8 +269,9 @@ export function buildPdfBuffer(
         : `${firstVisit.yesPct}% (${firstVisit.yes}/${firstVisit.total})`
     }`,
     40,
-    92,
+    y,
   );
+  y += 16;
   doc.text(
     `Value for money yes: ${
       analytics.valueForMoney.total === 0
@@ -242,19 +279,29 @@ export function buildPdfBuffer(
         : `${analytics.valueForMoney.yesPct}% (${analytics.valueForMoney.yes}/${analytics.valueForMoney.total})`
     }`,
     40,
-    108,
+    y,
   );
 
   autoTable(doc, {
-    startY: 124,
+    startY: y + 16,
     head: [["Category", "Average", "Responses"]],
     body: analytics.categories.map((cat) => [
       cat.label,
-      cat.average == null ? "—" : cat.average.toFixed(1),
+      cat.average == null ? "—" : `${cat.average.toFixed(1)} / 5`,
       String(cat.count),
     ]),
-    styles: { fontSize: 9, cellPadding: 4 },
-    headStyles: { fillColor: [26, 43, 74] },
+    styles: {
+      fontSize: 9,
+      cellPadding: 5,
+      textColor: ABAI_NAVY,
+      fillColor: ABAI_CREAM,
+    },
+    headStyles: {
+      fillColor: ABAI_NAVY,
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+    },
+    alternateRowStyles: { fillColor: [255, 255, 255] },
     margin: { left: 40, right: 40 },
   });
 
@@ -262,40 +309,73 @@ export function buildPdfBuffer(
     // @ts-expect-error jspdf-autotable adds lastAutoTable
     (doc.lastAutoTable?.finalY as number | undefined) ?? 200;
 
+  doc.setTextColor(...ABAI_NAVY);
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.text("Top praise", 40, afterCategories + 28);
+  doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
+  doc.setTextColor(...ABAI_MUTED);
   const praise = topComments(rows, "praise");
-  let y = afterCategories + 44;
+  let textY = afterCategories + 44;
   if (praise.length === 0) {
-    doc.text("—", 40, y);
-    y += 14;
+    doc.text("—", 40, textY);
+    textY += 14;
   } else {
     for (const line of praise) {
       const wrapped = doc.splitTextToSize(`• ${line}`, 515);
-      doc.text(wrapped, 40, y);
-      y += wrapped.length * 12 + 4;
+      doc.setTextColor(...ABAI_NAVY);
+      doc.text(wrapped, 40, textY);
+      textY += wrapped.length * 12 + 4;
     }
   }
 
-  y += 10;
+  textY += 10;
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
-  doc.text("Top complaints / improvement notes", 40, y);
-  y += 16;
+  doc.setTextColor(...ABAI_NAVY);
+  doc.text("Top complaints / improvement notes", 40, textY);
+  textY += 16;
+  doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   const complaints = topComments(rows, "complaint");
   if (complaints.length === 0) {
-    doc.text("—", 40, y);
+    doc.setTextColor(...ABAI_MUTED);
+    doc.text("—", 40, textY);
   } else {
     for (const line of complaints) {
-      if (y > 760) {
+      if (textY > 760) {
         doc.addPage();
-        y = 40;
+        doc.setFillColor(...ABAI_NAVY);
+        doc.rect(0, 0, pageWidth, 28, "F");
+        doc.setFillColor(...ABAI_GOLD);
+        doc.rect(0, 28, pageWidth, 3, "F");
+        textY = 48;
       }
       const wrapped = doc.splitTextToSize(`• ${line}`, 515);
-      doc.text(wrapped, 40, y);
-      y += wrapped.length * 12 + 4;
+      doc.setTextColor(...ABAI_NAVY);
+      doc.text(wrapped, 40, textY);
+      textY += wrapped.length * 12 + 4;
     }
+  }
+
+  // Footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i += 1) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(...ABAI_MUTED);
+    doc.text(
+      "Abai Lodges & Spa · Confidential staff summary",
+      40,
+      doc.internal.pageSize.getHeight() - 24,
+    );
+    doc.text(
+      `Page ${i} of ${pageCount}`,
+      pageWidth - 40,
+      doc.internal.pageSize.getHeight() - 24,
+      { align: "right" },
+    );
   }
 
   return doc.output("arraybuffer");

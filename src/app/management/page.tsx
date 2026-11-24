@@ -11,7 +11,7 @@ export default async function ManagementPage() {
       <BrandHeader compact />
       {authenticated ? (
         <StaffFeedbackList
-          title="Guest Feedback — Management"
+          title="Management"
           canExport={false}
           canManageUsers={false}
           canModerate

@@ -94,3 +94,32 @@ body {
 .tap-choice:active {
   transform: scale(0.97);
 }
+
+/**
+ * Soften casual screenshots / print of the guest form where the web platform allows.
+ * Limits: OS screenshot tools and phone cameras of a printed/screen form cannot be blocked.
+ */
+.guest-form-protect {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.guest-form-protect input,
+.guest-form-protect textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  body::after {
+    content: "";
+    visibility: visible !important;
+    position: fixed;
+    inset: 0;
+    background: #fff;
+  }
+}

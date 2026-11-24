@@ -149,12 +149,18 @@ export function StaffAnalyticsSummary({ analytics, loading, lowOnly }: Props) {
                     cat.weak ? "font-bold" : ""
                   }`}
                 >
-                  {formatAvg(cat.average)}
                   {cat.count === 0 ? (
-                    <span className="ml-1 text-sm font-sans font-normal text-abai-muted">
+                    <span className="text-sm font-sans font-normal text-abai-muted">
                       N/A
                     </span>
-                  ) : null}
+                  ) : (
+                    <>
+                      {formatAvg(cat.average)}
+                      <span className="ml-1 text-sm font-sans font-normal text-abai-muted">
+                        / 5
+                      </span>
+                    </>
+                  )}
                 </p>
               </li>
             ))}
