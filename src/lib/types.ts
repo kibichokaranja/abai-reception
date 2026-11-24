@@ -9,7 +9,12 @@ export type PurposeOfVisit =
   | "other_services"
   | "recreation";
 
-export type StaffUserRole = "owner" | "management" | "reception";
+export type StaffUserRole =
+  | "owner"
+  | "management"
+  | "reception"
+  | "it_manager"
+  | "website_api";
 
 /** Legacy guest form payload (pre survey v2). */
 export type GuestFeedbackInput = {
@@ -76,6 +81,8 @@ export type GuestFeedbackRow = {
   is_irrelevant: boolean;
   submit_lat: number | null;
   submit_lng: number | null;
+  /** Client IP at submit (server-side geofence). */
+  submit_ip: string | null;
   // Legacy
   overall_stay: number | null;
   check_in: number | null;
@@ -215,6 +222,7 @@ export const SURVEY_V2_SELECT_COLUMNS = [
   "is_irrelevant",
   "submit_lat",
   "submit_lng",
+  "submit_ip",
   "overall_stay",
   "check_in",
   "room_cleanliness",
@@ -249,7 +257,19 @@ export const STAFF_USER_ROLES: { value: StaffUserRole; label: string }[] = [
   { value: "owner", label: "Owner" },
   { value: "management", label: "Management" },
   { value: "reception", label: "Staff desk" },
+  { value: "it_manager", label: "IT manager" },
+  { value: "website_api", label: "Website API" },
 ];
 
 /** UI label for the reception role / portal (route stays `/reception`). */
 export const STAFF_DESK_LABEL = "Staff desk";
+
+/** Roles that may approve/reject feedback into the live system. */
+export const APPROVER_ROLES: StaffUserRole[] = ["owner", "it_manager"];
+
+/** Roles that may view the pending approval queue. */
+export const PENDING_VIEW_ROLES: StaffUserRole[] = [
+  "owner",
+  "management",
+  "it_manager",
+];

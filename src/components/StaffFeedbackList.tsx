@@ -14,6 +14,7 @@ import {
   recommendLabelForRow,
   type StaffAnalytics,
 } from "@/lib/staff-analytics";
+import { SURVEY_QUESTION_SLIDES } from "@/lib/survey-questions";
 import {
   servicesLabelForRow,
   type GuestFeedbackRow,
@@ -24,6 +25,14 @@ function firstVisitLabel(value: boolean | null): string {
   if (value === true) return "Yes";
   if (value === false) return "No";
   return "—";
+}
+
+function hasAccommodation(row: GuestFeedbackRow): boolean {
+  const services = row.purpose_of_visit_services;
+  if (Array.isArray(services) && services.includes("accommodation")) {
+    return true;
+  }
+  return row.purpose_of_visit === "accommodation";
 }
 
 function visitColumnLabel(row: GuestFeedbackRow) {
@@ -90,61 +99,82 @@ function TextCell({ text }: { text: string | null }) {
   );
 }
 
-const V2_DETAIL_FIELDS: { key: keyof GuestFeedbackRow; label: string }[] = [
-  { key: "reservation_ease", label: "Reservation" },
-  { key: "welcome_check_in", label: "Welcome / check-in" },
-  { key: "accommodation_comfort", label: "Accommodation" },
-  { key: "conference_facilities", label: "Conference" },
-  { key: "wifi_quality", label: "Wi‑Fi" },
-  { key: "recreational_leisure", label: "Leisure" },
-  { key: "spa_experience", label: "Spa" },
-  { key: "cleanliness_upkeep", label: "Cleanliness" },
-  { key: "food_taste_quality", label: "Food" },
-  { key: "service_promptness", label: "Service" },
-  { key: "staff_friendliness", label: "Staff" },
-  { key: "safety_security", label: "Safety" },
-  { key: "overall_experience", label: "Overall" },
-  { key: "recommend_score", label: "Recommend" },
-  { key: "value_for_money", label: "Value for money" },
-];
+function answerForSlide(
+  row: GuestFeedbackRow,
+  key: string,
+): { label: string; tone?: string } {
+  if (key === "first_visit") {
+    return { label: firstVisitLabel(row.first_visit) };
+  }
+  if (key === "purpose_of_visit_services") {
+    return { label: servicesLabelForRow(row) };
+  }
+  if (key === "standout_staff_name") {
+    return { label: row.standout_staff_name?.trim() || "—" };
+  }
+  if (key === "comment") {
+    return { label: row.comment?.trim() || "—" };
+  }
+  if (key === "value_for_money") {
+    return {
+      label: row.value_for_money
+        ? row.value_for_money.charAt(0).toUpperCase() +
+          row.value_for_money.slice(1)
+        : "—",
+    };
+  }
+  if (key === "recommend_score") {
+    return { label: recommendLabelForRow(row) };
+  }
+  const raw = row[key as keyof GuestFeedbackRow];
+  if (typeof raw === "number") {
+    return { label: String(raw), tone: scoreTone(raw) };
+  }
+  if (typeof raw === "string") {
+    return { label: raw };
+  }
+  return { label: isSurveyV2Row(row) ? "N/A" : "—" };
+}
 
-const LEGACY_DETAIL_FIELDS: { key: keyof GuestFeedbackRow; label: string }[] = [
-  { key: "overall_stay", label: "Overall stay" },
-  { key: "check_in", label: "Check-in" },
-  { key: "room_cleanliness", label: "Room" },
-  { key: "food_drink", label: "F&B" },
-  { key: "spa_fitness", label: "Spa" },
-  { key: "staff_experience", label: "Staff" },
-  { key: "recommend", label: "Recommend" },
-];
+/** Expand row → slide through every survey question for this guest. */
+function RowQuestionSlider({ row }: { row: GuestFeedbackRow }) {
+  const [index, setIndex] = useState(0);
+  const slides = SURVEY_QUESTION_SLIDES;
+  const slide = slides[index] ?? slides[0];
+  const answer = answerForSlide(row, slide.key);
 
-function DetailScores({ row }: { row: GuestFeedbackRow }) {
-  const v2 = isSurveyV2Row(row);
-  const fields = v2 ? V2_DETAIL_FIELDS : LEGACY_DETAIL_FIELDS;
   return (
-    <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-      {fields.map(({ key, label }) => {
-        const raw = row[key];
-        const display =
-          key === "recommend_score"
-            ? recommendLabelForRow(row)
-            : raw == null
-              ? v2 && typeof raw !== "string"
-                ? "N/A"
-                : "—"
-              : String(raw);
-        const tone =
-          typeof raw === "number" && key !== "recommend_score"
-            ? scoreTone(raw)
-            : "text-abai-ink capitalize";
-        return (
-          <div key={String(key)} className="min-w-0">
-            <dt className="text-xs text-abai-muted">{label}</dt>
-            <dd className={`text-sm font-medium ${tone}`}>{display}</dd>
-          </div>
-        );
-      })}
-    </dl>
+    <div className="rounded-lg border border-abai-navy/10 bg-white px-3 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-abai-muted">
+          Question {slide.number} of {slides.length}
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="rounded border border-abai-navy/20 px-2 py-1 text-xs font-medium text-abai-navy disabled:opacity-40"
+            disabled={index <= 0}
+            onClick={() => setIndex((i) => Math.max(0, i - 1))}
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            className="rounded border border-abai-navy/20 px-2 py-1 text-xs font-medium text-abai-navy disabled:opacity-40"
+            disabled={index >= slides.length - 1}
+            onClick={() =>
+              setIndex((i) => Math.min(slides.length - 1, i + 1))
+            }
+          >
+            Next
+          </button>
+        </div>
+      </div>
+      <p className="mt-2 text-sm font-medium text-abai-ink">{slide.fullLabel}</p>
+      <p className={`mt-2 text-base font-semibold ${answer.tone ?? "text-abai-navy"}`}>
+        {answer.label}
+      </p>
+    </div>
   );
 }
 
@@ -152,13 +182,15 @@ function FeedbackRow({
   row,
   showGuestDetails,
   showComments,
-  canModerate,
+  canApprove,
+  canMarkIrrelevant,
   onAction,
 }: {
   row: GuestFeedbackRow;
   showGuestDetails: boolean;
   showComments: boolean;
-  canModerate: boolean;
+  canApprove: boolean;
+  canMarkIrrelevant: boolean;
   onAction: (
     id: string,
     action: "approve" | "reject" | "mark_irrelevant" | "clear_irrelevant",
@@ -168,8 +200,13 @@ function FeedbackRow({
   const overall = overallForRow(row);
   const v2 = isSurveyV2Row(row);
   const visit = visitColumnLabel(row);
+  const showRoomNearDate = hasAccommodation(row) && Boolean(row.room_number?.trim());
+  const showActions = canApprove || canMarkIrrelevant;
   const colSpan =
-    6 + (showGuestDetails ? 3 : 0) + (showComments ? 1 : 0) + (canModerate ? 1 : 0);
+    6 +
+    (showGuestDetails ? 3 : 0) +
+    (showComments ? 1 : 0) +
+    (showActions ? 1 : 0);
 
   return (
     <>
@@ -182,6 +219,11 @@ function FeedbackRow({
           <span className="block font-medium">{visit.datePart}</span>
           {visit.timePart ? (
             <span className="block text-xs text-abai-muted">{visit.timePart}</span>
+          ) : null}
+          {showRoomNearDate ? (
+            <span className="mt-1 block text-xs font-medium text-abai-navy">
+              Room {row.room_number!.trim()}
+            </span>
           ) : null}
           {row.is_irrelevant ? (
             <span className="mt-1 inline-block text-xs font-medium text-abai-muted">
@@ -240,47 +282,55 @@ function FeedbackRow({
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
           >
-            {open ? "Hide" : "Scores"}
+            {open ? "Collapse" : "Expand all"}
           </button>
         </td>
-        {canModerate ? (
+        {showActions ? (
           <td className="px-3 py-3">
             <div className="flex flex-col gap-1">
               {row.approval_status === "pending" ? (
-                <>
+                canApprove ? (
+                  <>
+                    <button
+                      type="button"
+                      className="text-left text-xs font-medium text-emerald-800 underline-offset-2 hover:underline"
+                      onClick={() => onAction(row.id, "approve")}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      className="text-left text-xs font-medium text-red-800 underline-offset-2 hover:underline"
+                      onClick={() => onAction(row.id, "reject")}
+                    >
+                      Reject
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-xs text-abai-muted">
+                    Awaiting IT manager
+                  </span>
+                )
+              ) : canMarkIrrelevant ? (
+                row.is_irrelevant ? (
                   <button
                     type="button"
-                    className="text-left text-xs font-medium text-emerald-800 underline-offset-2 hover:underline"
-                    onClick={() => onAction(row.id, "approve")}
+                    className="text-left text-xs font-medium text-abai-navy underline-offset-2 hover:underline"
+                    onClick={() => onAction(row.id, "clear_irrelevant")}
                   >
-                    Approve
+                    Include in analytics
                   </button>
+                ) : (
                   <button
                     type="button"
-                    className="text-left text-xs font-medium text-red-800 underline-offset-2 hover:underline"
-                    onClick={() => onAction(row.id, "reject")}
+                    className="text-left text-xs font-medium text-abai-muted underline-offset-2 hover:underline"
+                    onClick={() => onAction(row.id, "mark_irrelevant")}
+                    title="Mark as low-signal / irrelevant so analytics can exclude it"
                   >
-                    Reject
+                    Mark irrelevant
                   </button>
-                </>
-              ) : row.is_irrelevant ? (
-                <button
-                  type="button"
-                  className="text-left text-xs font-medium text-abai-navy underline-offset-2 hover:underline"
-                  onClick={() => onAction(row.id, "clear_irrelevant")}
-                >
-                  Include in analytics
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="text-left text-xs font-medium text-abai-muted underline-offset-2 hover:underline"
-                  onClick={() => onAction(row.id, "mark_irrelevant")}
-                  title="Mark as low-signal / irrelevant so analytics can exclude it"
-                >
-                  Mark irrelevant
-                </button>
-              )}
+                )
+              ) : null}
             </div>
           </td>
         ) : null}
@@ -288,7 +338,7 @@ function FeedbackRow({
       {open ? (
         <tr className="border-t border-abai-navy/5 bg-white/70">
           <td colSpan={colSpan} className="px-3 py-4">
-            <DetailScores row={row} />
+            <RowQuestionSlider row={row} />
             {showGuestDetails && row.standout_staff_name?.trim() ? (
               <p className="mt-3 text-sm text-abai-ink">
                 <span className="text-abai-muted">Standout: </span>
@@ -320,7 +370,7 @@ type Props = {
   canExport?: boolean;
   canManageUsers?: boolean;
   canEditPermissions?: boolean;
-  /** Owner + management can approve pending and mark irrelevant. */
+  /** Owner + IT manager can approve; management sees pending. */
   canModerate?: boolean;
 };
 
@@ -338,6 +388,9 @@ export function StaffFeedbackList({
   const [permissions, setPermissions] =
     useState<DashboardPermissions | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [apiCanApprove, setApiCanApprove] = useState(false);
+  const [apiCanMarkIrrelevant, setApiCanMarkIrrelevant] = useState(false);
+  const [apiCanViewPending, setApiCanViewPending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState("");
@@ -349,7 +402,10 @@ export function StaffFeedbackList({
 
   const effectivePermissions = permissions ?? OWNER_DEFAULTS;
   const showGuestDetails =
-    canManageUsers || effectivePermissions.show_guest_details;
+    canManageUsers ||
+    role === "owner" ||
+    role === "it_manager" ||
+    effectivePermissions.show_guest_details;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -371,6 +427,9 @@ export function StaffFeedbackList({
         analytics?: StaffAnalytics | null;
         permissions?: DashboardPermissions;
         role?: string;
+        canApprove?: boolean;
+        canMarkIrrelevant?: boolean;
+        canViewPending?: boolean;
         error?: string;
         debug?: {
           urlHost?: string | null;
@@ -400,6 +459,9 @@ export function StaffFeedbackList({
       setAnalytics(data.analytics ?? null);
       if (data.permissions) setPermissions(data.permissions);
       if (data.role) setRole(data.role);
+      setApiCanApprove(Boolean(data.canApprove));
+      setApiCanMarkIrrelevant(Boolean(data.canMarkIrrelevant));
+      setApiCanViewPending(Boolean(data.canViewPending));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
       setAnalytics(null);
@@ -429,9 +491,22 @@ export function StaffFeedbackList({
     pendingMode,
   ]);
 
-  const allowExport = canExport || effectivePermissions.show_export;
-  const moderate =
-    canModerate || role === "owner" || role === "management";
+  const allowExport =
+    canExport || role === "owner" || effectivePermissions.show_export;
+  const canApprove =
+    apiCanApprove || role === "owner" || role === "it_manager";
+  const canMarkIrrelevant =
+    apiCanMarkIrrelevant ||
+    role === "owner" ||
+    role === "management" ||
+    role === "it_manager";
+  const canViewPendingQueue =
+    canModerate ||
+    apiCanViewPending ||
+    role === "owner" ||
+    role === "management" ||
+    role === "it_manager";
+  const showActions = canApprove || canMarkIrrelevant;
 
   async function logout() {
     await fetch("/api/staff/logout", {
@@ -504,7 +579,7 @@ export function StaffFeedbackList({
     6 +
     (showGuestDetails ? 3 : 0) +
     (effectivePermissions.show_comments ? 1 : 0) +
-    (moderate ? 1 : 0);
+    (showActions ? 1 : 0);
 
   return (
     <div className="mx-auto max-w-none space-y-6 px-4 py-8 lg:px-6">
@@ -524,7 +599,7 @@ export function StaffFeedbackList({
         </button>
       </div>
 
-      {moderate ? (
+      {canViewPendingQueue ? (
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -553,10 +628,12 @@ export function StaffFeedbackList({
 
       {(effectivePermissions.show_date_filters ||
         effectivePermissions.show_low_score_filter ||
+        role === "owner" ||
         allowExport ||
-        moderate) && (
+        canMarkIrrelevant) && (
         <div className="flex flex-wrap items-end gap-3 rounded-xl border border-abai-navy/10 bg-white p-4">
-          {effectivePermissions.show_date_filters && !pendingMode ? (
+          {(effectivePermissions.show_date_filters || role === "owner") &&
+          !pendingMode ? (
             <>
               <label className="space-y-1 text-sm">
                 <span className="font-medium text-abai-navy">From</span>
@@ -578,7 +655,8 @@ export function StaffFeedbackList({
               </label>
             </>
           ) : null}
-          {effectivePermissions.show_low_score_filter && !pendingMode ? (
+          {(effectivePermissions.show_low_score_filter || role === "owner") &&
+          !pendingMode ? (
             <label className="flex min-h-10 items-center gap-2 text-sm font-medium text-abai-navy">
               <input
                 type="checkbox"
@@ -589,7 +667,7 @@ export function StaffFeedbackList({
               Low scores only (≤2.5)
             </label>
           ) : null}
-          {moderate && !pendingMode ? (
+          {canMarkIrrelevant && !pendingMode ? (
             <label className="flex min-h-10 items-center gap-2 text-sm font-medium text-abai-navy">
               <input
                 type="checkbox"
@@ -627,12 +705,13 @@ export function StaffFeedbackList({
               </button>
             </>
           ) : null}
-          {moderate && !pendingMode ? (
+          {canMarkIrrelevant && !pendingMode ? (
             <p className="basis-full text-xs text-abai-muted">
               Mark a review <strong>irrelevant</strong> when it is blank,
               off-topic, or low-signal. With “Hide irrelevant from analytics”
               on, those rows stay in the table (dimmed) but are excluded from
-              averages, carousel, and exports.
+              averages, carousel, and exports. Live system reviews require{" "}
+              <strong>IT manager</strong> (or owner) approval.
             </p>
           ) : null}
         </div>
@@ -672,7 +751,10 @@ export function StaffFeedbackList({
       {canManageUsers ? <StaffCreateUser /> : null}
       {canEditPermissions ? <OwnerPermissionsEditor /> : null}
 
-      {(effectivePermissions.show_feedback_list || pendingMode) && (
+      {(effectivePermissions.show_feedback_list ||
+        pendingMode ||
+        role === "owner" ||
+        role === "it_manager") && (
         <div className="overflow-x-auto rounded-xl border border-abai-navy/10 bg-white">
           <table className="min-w-full text-left text-sm">
             <thead className="bg-abai-navy text-white">
@@ -694,7 +776,7 @@ export function StaffFeedbackList({
                   <th className="px-3 py-3 font-medium">Comment</th>
                 ) : null}
                 <th className="px-3 py-3 font-medium">Detail</th>
-                {moderate ? (
+                {showActions ? (
                   <th className="px-3 py-3 font-medium">Actions</th>
                 ) : null}
               </tr>
@@ -718,7 +800,8 @@ export function StaffFeedbackList({
                   row={row}
                   showGuestDetails={showGuestDetails}
                   showComments={effectivePermissions.show_comments}
-                  canModerate={moderate}
+                  canApprove={canApprove}
+                  canMarkIrrelevant={canMarkIrrelevant}
                   onAction={onModerate}
                 />
               ))}

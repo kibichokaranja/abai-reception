@@ -34,6 +34,19 @@ export function managementPasswordConfigured(): boolean {
   );
 }
 
+export function itManagerPasswordConfigured(): boolean {
+  return Boolean(
+    process.env.IT_MANAGER_PASSWORD &&
+      process.env.IT_MANAGER_PASSWORD.length > 0,
+  );
+}
+
+export function websiteApiKeyConfigured(): boolean {
+  return Boolean(
+    process.env.WEBSITE_API_KEY && process.env.WEBSITE_API_KEY.length > 0,
+  );
+}
+
 export function verifyStaffPassword(password: string): boolean {
   const expected = process.env.STAFF_PASSWORD;
   if (!expected) return false;
@@ -50,6 +63,34 @@ export function verifyManagementPassword(password: string): boolean {
   const expected = process.env.MANAGEMENT_PASSWORD;
   if (!expected) return false;
   return password === expected;
+}
+
+export function verifyItManagerPassword(password: string): boolean {
+  const expected = process.env.IT_MANAGER_PASSWORD;
+  if (!expected) return false;
+  return password === expected;
+}
+
+/** Constant-time-ish compare for website API key header / Bearer token. */
+export function verifyWebsiteApiKey(provided: string | null | undefined): boolean {
+  const expected = process.env.WEBSITE_API_KEY;
+  if (!expected || !provided) return false;
+  if (provided.length !== expected.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < expected.length; i += 1) {
+    mismatch |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
+export function websiteApiKeyFromRequest(request: Request): string | null {
+  const headerKey = request.headers.get("x-api-key")?.trim();
+  if (headerKey) return headerKey;
+  const auth = request.headers.get("authorization");
+  if (auth?.toLowerCase().startsWith("bearer ")) {
+    return auth.slice(7).trim();
+  }
+  return null;
 }
 
 export async function hashStaffPassword(password: string): Promise<string> {
@@ -152,12 +193,24 @@ export async function authenticatePortalLogin(options: {
   }
 
   // Env password bootstrap — only while no DB user exists for the role.
+  // website_api has no portal login; use WEBSITE_API_KEY on /api/website/*.
+  if (options.role === "website_api") {
+    return {
+      ok: false,
+      error:
+        "Website API uses WEBSITE_API_KEY on /api/website/reviews — not a portal login.",
+      status: 400,
+    };
+  }
+
   const envOk =
     options.role === "owner"
       ? staffPasswordConfigured() && verifyStaffPassword(password)
       : options.role === "management"
         ? managementPasswordConfigured() && verifyManagementPassword(password)
-        : receptionPasswordConfigured() && verifyReceptionPassword(password);
+        : options.role === "it_manager"
+          ? itManagerPasswordConfigured() && verifyItManagerPassword(password)
+          : receptionPasswordConfigured() && verifyReceptionPassword(password);
 
   if (!envOk) {
     const missing =
@@ -165,14 +218,18 @@ export async function authenticatePortalLogin(options: {
         ? !staffPasswordConfigured()
         : options.role === "management"
           ? !managementPasswordConfigured()
-          : !receptionPasswordConfigured();
+          : options.role === "it_manager"
+            ? !itManagerPasswordConfigured()
+            : !receptionPasswordConfigured();
     if (missing) {
       const varName =
         options.role === "owner"
           ? "STAFF_PASSWORD"
           : options.role === "management"
             ? "MANAGEMENT_PASSWORD"
-            : "RECEPTION_PASSWORD";
+            : options.role === "it_manager"
+              ? "IT_MANAGER_PASSWORD"
+              : "RECEPTION_PASSWORD";
       return {
         ok: false,
         error: `${varName} is not configured on the server.`,
@@ -198,6 +255,8 @@ function normalizeRole(raw: unknown): StaffRole | null {
   if (raw === "owner" || raw === "staff") return "owner";
   if (raw === "management") return "management";
   if (raw === "reception") return "reception";
+  if (raw === "it_manager") return "it_manager";
+  if (raw === "website_api") return "website_api";
   return null;
 }
 
@@ -256,6 +315,32 @@ export async function isManagementAuthenticated(): Promise<boolean> {
 export async function isReceptionAuthenticated(): Promise<boolean> {
   const session = await getStaffSession();
   return session?.role === "reception";
+}
+
+export async function isItManagerAuthenticated(): Promise<boolean> {
+  const session = await getStaffSession();
+  return session?.role === "it_manager";
+}
+
+/** Owner always fully entitled — never Unauthorized on owner-gated actions. */
+export function isOwnerRole(role: string | null | undefined): boolean {
+  return role === "owner";
+}
+
+export function canApproveFeedback(role: string | null | undefined): boolean {
+  return role === "owner" || role === "it_manager";
+}
+
+export function canViewPending(role: string | null | undefined): boolean {
+  return (
+    role === "owner" || role === "management" || role === "it_manager"
+  );
+}
+
+export function canMarkIrrelevant(role: string | null | undefined): boolean {
+  return (
+    role === "owner" || role === "management" || role === "it_manager"
+  );
 }
 
 export function staffCookieOptions(maxAge = SESSION_TTL_SECONDS) {

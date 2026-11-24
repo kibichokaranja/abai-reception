@@ -2,8 +2,16 @@
 
 import type { StaffAnalytics } from "@/lib/staff-analytics";
 
-function formatAvg(value: number | null): string {
-  return value == null ? "—" : value.toFixed(1);
+function AvgOutOfFive({ value }: { value: number | null }) {
+  if (value == null) return <>—</>;
+  return (
+    <>
+      {value.toFixed(1)}
+      <span className="ml-1 text-sm font-sans font-normal text-abai-muted">
+        / 5
+      </span>
+    </>
+  );
 }
 
 type Props = {
@@ -63,7 +71,7 @@ export function CategoryAveragesPanel({
               Avg overall
             </p>
             <p className="font-display text-3xl font-semibold text-abai-navy">
-              {formatAvg(analytics.overallAvg)}
+              <AvgOutOfFive value={analytics.overallAvg} />
             </p>
           </div>
           <div className="rounded-lg border border-abai-navy/10 px-3 py-3">
@@ -71,7 +79,7 @@ export function CategoryAveragesPanel({
               Avg recommend
             </p>
             <p className="font-display text-3xl font-semibold text-abai-navy">
-              {formatAvg(analytics.recommendScoreAvg)}
+              <AvgOutOfFive value={analytics.recommendScoreAvg} />
             </p>
           </div>
           <div className="rounded-lg border border-abai-gold/40 bg-abai-navy px-3 py-3 text-white sm:col-span-2">
@@ -102,12 +110,13 @@ export function CategoryAveragesPanel({
                   cat.weak ? "font-bold" : ""
                 }`}
               >
-                {formatAvg(cat.average)}
                 {cat.count === 0 ? (
-                  <span className="ml-1 text-sm font-sans font-normal text-abai-muted">
+                  <span className="text-sm font-sans font-normal text-abai-muted">
                     N/A
                   </span>
-                ) : null}
+                ) : (
+                  <AvgOutOfFive value={cat.average} />
+                )}
               </p>
             </li>
           ))}

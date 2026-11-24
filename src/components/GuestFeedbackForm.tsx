@@ -31,8 +31,8 @@ type FormState = {
   accommodation_comfort: number | null;
   conference_facilities: number | null;
   wifi_quality: number | null;
-  recreational_leisure: RatingOrNa | null;
   spa_experience: number | null;
+  recreational_leisure: RatingOrNa | null;
   cleanliness_upkeep: number | null;
   food_taste_quality: number | null;
   service_promptness: number | null;
@@ -56,8 +56,8 @@ const emptyForm: FormState = {
   accommodation_comfort: null,
   conference_facilities: null,
   wifi_quality: null,
-  recreational_leisure: null,
   spa_experience: null,
+  recreational_leisure: null,
   cleanliness_upkeep: null,
   food_taste_quality: null,
   service_promptness: null,
@@ -70,7 +70,7 @@ const emptyForm: FormState = {
   comment: "",
 };
 
-/** Q8 (leisure) still allows Not applicable; Q3–7 do not when shown. */
+/** Leisure still allows Not applicable; Acc/Conf/Spa service questions do not. */
 const RATING_WITH_NA = [
   ...RATING_LABELS.map((r) => ({
     value: r.value as RatingOrNa,
@@ -84,47 +84,71 @@ function toNullableScore(value: RatingOrNa | null): number | null {
   return value;
 }
 
-type GeoState =
-  | { status: "idle" }
-  | { status: "pending" }
-  | { status: "ok"; lat: number; lng: number }
-  | { status: "denied" | "unavailable" | "error"; message: string };
+/** Uniform question label class (no special display font on later questions). */
+const QUESTION_LABEL_CLASS =
+  "text-base font-medium leading-snug text-abai-ink sm:text-lg";
 
-function readGeolocation(): Promise<GeoState> {
-  if (typeof navigator === "undefined" || !navigator.geolocation) {
-    return Promise.resolve({
-      status: "unavailable",
-      message:
-        "Location is not available in this browser. Feedback can only be submitted on site at Abai Lodges & Spa.",
-    });
-  }
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        resolve({
-          status: "ok",
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        });
-      },
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
-          resolve({
-            status: "denied",
-            message:
-              "Location permission denied. Allow location while on the Abai Lodges & Spa grounds to submit.",
-          });
-        } else {
-          resolve({
-            status: "unavailable",
-            message:
-              "Could not determine your location. Try again on the lodge grounds with location enabled.",
-          });
-        }
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+/**
+ * Numbering:
+ * - No Acc/Conf/Spa → flat 1–13 across visible questions.
+ * - With Acc/Conf/Spa → Q1, Q2, then service-specific 2.1 / 2.2 / …, then continue 3…
+ */
+function buildQuestionNumbers(opts: {
+  showStay: boolean;
+  showSpa: boolean;
+}): Record<string, string> {
+  const nums: Record<string, string> = {
+    first_visit: "1",
+    services: "2",
+  };
+
+  let sub = 0;
+  const serviceKeys: string[] = [];
+  if (opts.showStay) {
+    serviceKeys.push(
+      "reservation_ease",
+      "welcome_check_in",
+      "accommodation_comfort",
+      "conference_facilities",
+      "wifi_quality",
     );
-  });
+  }
+  if (opts.showSpa) {
+    serviceKeys.push("spa_experience");
+  }
+
+  const useSub = serviceKeys.length > 0;
+  for (const key of serviceKeys) {
+    sub += 1;
+    nums[key] = useSub ? `2.${sub}` : String(2 + sub);
+  }
+
+  let next = useSub ? 3 : 3;
+  // Flat path when no service-specific: leisure is 3 … comments 13.
+  if (!useSub) {
+    next = 3;
+  }
+
+  const rest = [
+    "recreational_leisure",
+    "cleanliness_upkeep",
+    "food_taste_quality",
+    "service_promptness",
+    "staff_friendliness",
+    "standout_staff_name",
+    "safety_security",
+    "overall_experience",
+    "value_for_money",
+    "recommend_score",
+    "comment",
+  ] as const;
+
+  for (const key of rest) {
+    nums[key] = String(next);
+    next += 1;
+  }
+
+  return nums;
 }
 
 export function GuestFeedbackForm() {
@@ -133,10 +157,8 @@ export function GuestFeedbackForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [thanks, setThanks] = useState(false);
-  const [geo, setGeo] = useState<GeoState>({ status: "idle" });
 
   const services = form.purpose_of_visit_services;
-  /** Show Q3–7 only when Accommodation or Conferencing is selected; no N/A. */
   const showStayQuestions = useMemo(
     () =>
       services.includes("accommodation") ||
@@ -145,8 +167,16 @@ export function GuestFeedbackForm() {
   );
   const showSpaQuestion = useMemo(() => services.includes("spa"), [services]);
 
-  const canSubmit =
-    consentChecked && !submitting && geo.status !== "pending";
+  const q = useMemo(
+    () =>
+      buildQuestionNumbers({
+        showStay: showStayQuestions,
+        showSpa: showSpaQuestion,
+      }),
+    [showStayQuestions, showSpaQuestion],
+  );
+
+  const canSubmit = consentChecked && !submitting;
 
   useEffect(() => {
     if (!thanks) return;
@@ -155,12 +185,10 @@ export function GuestFeedbackForm() {
       setConsentChecked(false);
       setThanks(false);
       setError(null);
-      setGeo({ status: "idle" });
     }, RESET_MS);
     return () => window.clearTimeout(timer);
   }, [thanks]);
 
-  // Clear hidden answers when services change so we don't submit stale scores.
   useEffect(() => {
     setForm((prev) => {
       let next = prev;
@@ -183,14 +211,6 @@ export function GuestFeedbackForm() {
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  async function ensureLocation(): Promise<GeoState> {
-    if (geo.status === "ok") return geo;
-    setGeo({ status: "pending" });
-    const result = await readGeolocation();
-    setGeo(result);
-    return result;
   }
 
   async function onSubmit(event: FormEvent) {
@@ -233,16 +253,6 @@ export function GuestFeedbackForm() {
 
     setSubmitting(true);
     try {
-      const location = await ensureLocation();
-      if (location.status !== "ok") {
-        setError(
-          location.status === "idle" || location.status === "pending"
-            ? "Location is required to submit."
-            : location.message,
-        );
-        return;
-      }
-
       const res = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -263,8 +273,8 @@ export function GuestFeedbackForm() {
             ? form.conference_facilities
             : null,
           wifi_quality: showStayQuestions ? form.wifi_quality : null,
-          recreational_leisure: toNullableScore(form.recreational_leisure),
           spa_experience: showSpaQuestion ? form.spa_experience : null,
+          recreational_leisure: toNullableScore(form.recreational_leisure),
           cleanliness_upkeep: form.cleanliness_upkeep,
           food_taste_quality: form.food_taste_quality,
           service_promptness: form.service_promptness,
@@ -275,8 +285,6 @@ export function GuestFeedbackForm() {
           value_for_money: form.value_for_money,
           recommend_score: form.recommend_score,
           comment: comment.length > 0 ? comment : null,
-          submit_lat: location.lat,
-          submit_lng: location.lng,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -313,7 +321,7 @@ export function GuestFeedbackForm() {
   return (
     <form
       onSubmit={onSubmit}
-      className="mx-auto max-w-2xl space-y-8 px-4 py-8 sm:py-10"
+      className="guest-form-protect mx-auto max-w-2xl space-y-8 px-4 py-8 sm:py-10"
     >
       <div className="animate-fade-up text-center">
         <h1 className="font-display text-3xl font-semibold text-abai-navy sm:text-4xl">
@@ -372,7 +380,7 @@ export function GuestFeedbackForm() {
       </div>
 
       <TapChoices
-        number={1}
+        number={q.first_visit}
         label="Is this your first visit?"
         options={FIRST_VISIT_OPTIONS}
         value={form.first_visit}
@@ -380,7 +388,7 @@ export function GuestFeedbackForm() {
         columns={2}
       />
       <TapChoices
-        number={2}
+        number={q.services}
         label="Which Abai services did you get to experience?"
         options={PURPOSE_OF_VISIT_OPTIONS}
         value={form.purpose_of_visit_services}
@@ -392,35 +400,35 @@ export function GuestFeedbackForm() {
       {showStayQuestions ? (
         <>
           <TapChoices
-            number={3}
+            number={q.reservation_ease}
             label="How would you describe the ease and convenience of making your reservation?"
             options={RATING_LABELS}
             value={form.reservation_ease}
             onChange={(v) => update("reservation_ease", v)}
           />
           <TapChoices
-            number={4}
+            number={q.welcome_check_in}
             label="What was your impression of the welcome and check-in process?"
             options={RATING_LABELS}
             value={form.welcome_check_in}
             onChange={(v) => update("welcome_check_in", v)}
           />
           <TapChoices
-            number={5}
+            number={q.accommodation_comfort}
             label="How would you describe the comfort and quality of your accommodation?"
             options={RATING_LABELS}
             value={form.accommodation_comfort}
             onChange={(v) => update("accommodation_comfort", v)}
           />
           <TapChoices
-            number={6}
+            number={q.conference_facilities}
             label="To what extent did our conference facilities meet your expectations?"
             options={RATING_LABELS}
             value={form.conference_facilities}
             onChange={(v) => update("conference_facilities", v)}
           />
           <TapChoices
-            number={7}
+            number={q.wifi_quality}
             label="How would you rate the speed, reliability and quality of our Wi-Fi?"
             options={RATING_LABELS}
             value={form.wifi_quality}
@@ -429,18 +437,9 @@ export function GuestFeedbackForm() {
         </>
       ) : null}
 
-      <TapChoices
-        number={8}
-        label="What was your impression of our recreational and leisure facilities?"
-        options={RATING_WITH_NA}
-        value={form.recreational_leisure}
-        onChange={(v) => update("recreational_leisure", v)}
-        columns={6}
-      />
-
       {showSpaQuestion ? (
         <TapChoices
-          number={9}
+          number={q.spa_experience}
           label="How would you describe the quality of your spa experience?"
           options={RATING_LABELS}
           value={form.spa_experience}
@@ -449,28 +448,37 @@ export function GuestFeedbackForm() {
       ) : null}
 
       <TapChoices
-        number={10}
+        number={q.recreational_leisure}
+        label="What was your impression of our recreational and leisure facilities?"
+        options={RATING_WITH_NA}
+        value={form.recreational_leisure}
+        onChange={(v) => update("recreational_leisure", v)}
+        columns={6}
+      />
+
+      <TapChoices
+        number={q.cleanliness_upkeep}
         label="How satisfied were you with the cleanliness and general upkeep of our facilities?"
         options={RATING_LABELS}
         value={form.cleanliness_upkeep}
         onChange={(v) => update("cleanliness_upkeep", v)}
       />
       <TapChoices
-        number={11}
+        number={q.food_taste_quality}
         label="What was your impression of the taste and quality of our food?"
         options={RATING_LABELS}
         value={form.food_taste_quality}
         onChange={(v) => update("food_taste_quality", v)}
       />
       <TapChoices
-        number={12}
+        number={q.service_promptness}
         label="How would you assess the promptness and efficiency of our service?"
         options={RATING_LABELS}
         value={form.service_promptness}
         onChange={(v) => update("service_promptness", v)}
       />
       <TapChoices
-        number={13}
+        number={q.staff_friendliness}
         label="To what extent did our staff demonstrate friendliness, courtesy and helpfulness?"
         options={RATING_LABELS}
         value={form.staff_friendliness}
@@ -478,9 +486,9 @@ export function GuestFeedbackForm() {
       />
 
       <label className="animate-fade-up block space-y-2">
-        <span className="text-base font-medium text-abai-ink sm:text-lg">
-          14. Was there a member of our team whose service stood out? Kindly
-          mention their name.
+        <span className={QUESTION_LABEL_CLASS}>
+          {q.standout_staff_name}. Was there a member of our team whose service
+          stood out? Kindly mention their name.
         </span>
         <span className="block text-sm text-abai-muted">Optional</span>
         <input
@@ -495,21 +503,21 @@ export function GuestFeedbackForm() {
       </label>
 
       <TapChoices
-        number={15}
+        number={q.safety_security}
         label="How would you rate the level of safety and security within the hotel?"
         options={RATING_LABELS}
         value={form.safety_security}
         onChange={(v) => update("safety_security", v)}
       />
       <TapChoices
-        number={16}
+        number={q.overall_experience}
         label="Taking everything into account, how would you rate your overall experience at Abai Lodges & Spa?"
         options={RATING_LABELS}
         value={form.overall_experience}
         onChange={(v) => update("overall_experience", v)}
       />
       <TapChoices
-        number={17}
+        number={q.value_for_money}
         label="Did your overall experience represent good value for money?"
         options={VALUE_FOR_MONEY_OPTIONS}
         value={form.value_for_money}
@@ -517,7 +525,7 @@ export function GuestFeedbackForm() {
         columns={3}
       />
       <TapChoices
-        number={18}
+        number={q.recommend_score}
         label="On a scale of 1–5, how likely are you to recommend Abai Lodges & Spa to friends, family or colleagues?"
         options={RECOMMEND_SCORE_OPTIONS}
         value={form.recommend_score}
@@ -525,8 +533,8 @@ export function GuestFeedbackForm() {
       />
 
       <label className="animate-fade-up block space-y-2">
-        <span className="font-display text-xl font-semibold text-abai-ink sm:text-2xl">
-          19. What else would you like to share with us or suggest for
+        <span className={QUESTION_LABEL_CLASS}>
+          {q.comment}. What else would you like to share with us or suggest for
           improvement?
         </span>
         <span className="block text-sm text-abai-muted">Optional</span>
@@ -548,9 +556,8 @@ export function GuestFeedbackForm() {
         <p className="text-sm leading-relaxed text-abai-muted">
           By submitting this form, you allow Abai Lodges &amp; Spa to collect
           your guest information and review for service and quality improvement.
-          Submit only while on the lodge grounds — your browser location is
-          checked. New feedback is reviewed by management before it appears on
-          dashboards.
+          Submit only on the lodge network. New feedback is reviewed by the IT
+          manager before it appears as a live system review.
         </p>
         <label className="flex cursor-pointer items-start gap-3 text-base text-abai-ink">
           <input
@@ -565,19 +572,6 @@ export function GuestFeedbackForm() {
             described above.
           </span>
         </label>
-        {geo.status === "denied" ||
-        geo.status === "unavailable" ||
-        geo.status === "error" ? (
-          <p className="text-sm text-red-800" role="status">
-            {geo.message}
-          </p>
-        ) : null}
-        {geo.status === "ok" ? (
-          <p className="text-xs text-abai-muted">Location ready for submit.</p>
-        ) : null}
-        {geo.status === "pending" ? (
-          <p className="text-xs text-abai-muted">Checking location…</p>
-        ) : null}
       </div>
 
       {error ? (
@@ -595,11 +589,7 @@ export function GuestFeedbackForm() {
         aria-disabled={!canSubmit}
         className="animate-soft-pulse min-h-16 w-full rounded-xl bg-abai-gold text-xl font-semibold text-abai-navy transition hover:bg-abai-gold-hover active:bg-abai-gold-pressed disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-abai-gold"
       >
-        {submitting
-          ? "Sending…"
-          : geo.status === "pending"
-            ? "Checking location…"
-            : "Submit feedback"}
+        {submitting ? "Sending…" : "Submit feedback"}
       </button>
     </form>
   );

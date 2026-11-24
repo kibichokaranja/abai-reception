@@ -269,5 +269,22 @@ export async function resolveEffectivePermissions(
   role: StaffUserRole,
 ): Promise<DashboardPermissions | "owner-full"> {
   if (role === "owner") return "owner-full";
+  if (role === "it_manager") {
+    return {
+      role: "management",
+      show_analytics: true,
+      show_category_averages: true,
+      show_question_carousel: true,
+      show_feedback_list: true,
+      show_comments: true,
+      show_guest_details: true,
+      show_date_filters: true,
+      show_low_score_filter: true,
+      show_export: false,
+    };
+  }
+  if (role === "website_api") {
+    return defaultPermissionsForRole("reception");
+  }
   return getDashboardPermissions(role);
 }

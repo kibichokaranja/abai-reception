@@ -4,7 +4,13 @@ import {
   type DashboardPermissions,
 } from "@/lib/dashboard-permissions";
 import { computeStaffAnalytics } from "@/lib/staff-analytics";
-import { getStaffSessionFromRequest } from "@/lib/staff-auth";
+import {
+  canApproveFeedback,
+  canMarkIrrelevant,
+  canViewPending,
+  getStaffSessionFromRequest,
+  isOwnerRole,
+} from "@/lib/staff-auth";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { describeServiceKeySource, getSupabaseUrl } from "@/lib/supabase-env";
 import {
@@ -39,31 +45,36 @@ function parseIsoDate(value: string | null): string | null {
   return value;
 }
 
-/** PostgREST "or" filter for any score ≤ threshold (default 2.5). */
-function lowScoreOrFilter(threshold = 2.5): string {
-  const keys = [
-    "overall_stay",
-    "check_in",
-    "room_cleanliness",
-    "food_drink",
-    "spa_fitness",
-    "staff_experience",
-    "wifi_quality",
-    "cleanliness_upkeep",
-    "food_taste_quality",
-    "service_promptness",
-    "staff_friendliness",
-    "safety_security",
-    "overall_experience",
-    "recommend_score",
-    "reservation_ease",
-    "welcome_check_in",
-    "accommodation_comfort",
-    "conference_facilities",
-    "recreational_leisure",
-    "spa_experience",
-  ];
-  return keys.map((k) => `${k}.lte.${threshold}`).join(",");
+const LOW_SCORE_KEYS = [
+  "overall_stay",
+  "check_in",
+  "room_cleanliness",
+  "food_drink",
+  "spa_fitness",
+  "staff_experience",
+  "wifi_quality",
+  "cleanliness_upkeep",
+  "food_taste_quality",
+  "service_promptness",
+  "staff_friendliness",
+  "safety_security",
+  "overall_experience",
+  "recommend_score",
+  "reservation_ease",
+  "welcome_check_in",
+  "accommodation_comfort",
+  "conference_facilities",
+  "recreational_leisure",
+  "spa_experience",
+] as const;
+
+/** Filter in JS so PostgREST OR length never 401/500s the owner low-score filter. */
+function rowHasLowScore(row: GuestFeedbackRow, threshold = 2.5): boolean {
+  for (const key of LOW_SCORE_KEYS) {
+    const value = row[key];
+    if (typeof value === "number" && value <= threshold) return true;
+  }
+  return false;
 }
 
 function noStoreHeaders(
@@ -89,6 +100,19 @@ const OWNER_FULL: DashboardPermissions = {
   show_export: true,
 };
 
+const IT_MANAGER_PERMS: DashboardPermissions = {
+  role: "management",
+  show_analytics: true,
+  show_category_averages: true,
+  show_question_carousel: true,
+  show_feedback_list: true,
+  show_comments: true,
+  show_guest_details: true,
+  show_date_filters: true,
+  show_low_score_filter: true,
+  show_export: false,
+};
+
 function normalizeRows(data: unknown[]): GuestFeedbackRow[] {
   return (data as GuestFeedbackRow[]).map((row) => ({
     ...row,
@@ -99,7 +123,35 @@ function normalizeRows(data: unknown[]): GuestFeedbackRow[] {
     approved_by: row.approved_by ?? null,
     submit_lat: row.submit_lat ?? null,
     submit_lng: row.submit_lng ?? null,
+    submit_ip: row.submit_ip ?? null,
   }));
+}
+
+async function permissionsForRole(
+  role: string,
+): Promise<DashboardPermissions> {
+  if (isOwnerRole(role)) {
+    return { ...OWNER_FULL };
+  }
+  if (role === "it_manager") {
+    return { ...IT_MANAGER_PERMS };
+  }
+  if (role === "management" || role === "reception") {
+    return getDashboardPermissions(role);
+  }
+  // website_api has no dashboard; treat as empty
+  return {
+    role: "reception",
+    show_analytics: false,
+    show_category_averages: false,
+    show_question_carousel: false,
+    show_feedback_list: false,
+    show_comments: false,
+    show_guest_details: false,
+    show_date_filters: false,
+    show_low_score_filter: false,
+    show_export: false,
+  };
 }
 
 export async function GET(request: Request) {
@@ -111,11 +163,8 @@ export async function GET(request: Request) {
     );
   }
 
-  const permissions =
-    session.role === "owner"
-      ? { ...OWNER_FULL, role: "management" as const }
-      : await getDashboardPermissions(session.role);
-  // Staff desk (reception) never receives the question carousel.
+  // Owner is always fully entitled — never gate by management permission rows.
+  const permissions = await permissionsForRole(session.role);
   if (session.role === "reception") {
     permissions.show_question_carousel = false;
   }
@@ -124,15 +173,15 @@ export async function GET(request: Request) {
   const fromParam = parseIsoDate(searchParams.get("from"));
   const toParam = parseIsoDate(searchParams.get("to"));
   const canFilterLow =
-    permissions.show_low_score_filter &&
-    (session.role === "owner" ||
-      session.role === "management" ||
-      session.role === "reception");
+    isOwnerRole(session.role) ||
+    (permissions.show_low_score_filter &&
+      (session.role === "management" ||
+        session.role === "reception" ||
+        session.role === "it_manager"));
   const lowOnly = canFilterLow && searchParams.get("low") === "1";
   const hideIrrelevant = searchParams.get("hideIrrelevant") === "1";
   const pendingOnly =
-    (session.role === "owner" || session.role === "management") &&
-    searchParams.get("pending") === "1";
+    canViewPending(session.role) && searchParams.get("pending") === "1";
 
   try {
     const supabase = getSupabaseAdminClient();
@@ -142,7 +191,6 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false })
       .limit(500);
 
-    // Dashboards show approved only — except the pending queue for owner/management.
     if (pendingOnly) {
       query = query.eq("approval_status", "pending");
     } else {
@@ -163,10 +211,6 @@ export async function GET(request: Request) {
       if (toParam) query = query.lte("visit_date", toParam);
     }
 
-    if (lowOnly) {
-      query = query.or(lowScoreOrFilter(2.5));
-    }
-
     const { data, error } = await query;
     if (error) {
       console.error("staff feedback select failed", error);
@@ -176,10 +220,10 @@ export async function GET(request: Request) {
         /permission denied|row-level security/i.test(error.message ?? "")
           ? " Run supabase/migrations/20260323_guest_feedback_service_role_grants.sql (GRANT to service_role)."
           : "";
-      const approvalHint = /approval_status|is_irrelevant|room_number/i.test(
+      const approvalHint = /approval_status|is_irrelevant|room_number|submit_ip/i.test(
         error.message ?? "",
       )
-        ? " Run batch 4 migrations 20260334–20260337 in the Supabase SQL Editor, then Redeploy."
+        ? " Run batch 4–5 migrations (20260334–20260339) in the Supabase SQL Editor, then Redeploy."
         : "";
       const servicesHint = /purpose_of_visit_services/i.test(error.message ?? "")
         ? " Run supabase/migrations/20260329_purpose_services_array.sql in the Supabase SQL Editor, then Redeploy."
@@ -220,42 +264,51 @@ export async function GET(request: Request) {
       );
     }
 
-    const feedback = normalizeRows(data ?? []);
+    let feedback = normalizeRows(data ?? []);
+    if (lowOnly) {
+      feedback = feedback.filter((row) => rowHasLowScore(row, 2.5));
+    }
+
     const needsAnalytics =
       !pendingOnly &&
-      (session.role === "owner" ||
+      (isOwnerRole(session.role) ||
+        session.role === "it_manager" ||
         permissions.show_analytics ||
         permissions.show_category_averages ||
         permissions.show_question_carousel);
 
-    // Analytics exclude irrelevant rows even when the list still shows them.
     const analyticsRows = hideIrrelevant
       ? feedback
       : feedback.filter((r) => !r.is_irrelevant);
 
+    const showList =
+      isOwnerRole(session.role) ||
+      session.role === "it_manager" ||
+      permissions.show_feedback_list ||
+      pendingOnly;
+
     return NextResponse.json(
       {
-        feedback: permissions.show_feedback_list || pendingOnly ? feedback : [],
+        feedback: showList ? feedback : [],
         analytics: needsAnalytics
           ? computeStaffAnalytics(
               hideIrrelevant ? feedback : analyticsRows,
             )
           : null,
         rowsForStats:
-          !permissions.show_feedback_list && needsAnalytics
+          !showList && needsAnalytics
             ? hideIrrelevant
               ? feedback
               : analyticsRows
             : undefined,
         role: session.role,
         pendingMode: pendingOnly,
-        permissions:
-          session.role === "owner"
-            ? {
-                ...OWNER_FULL,
-                show_export: true,
-              }
-            : permissions,
+        canApprove: canApproveFeedback(session.role),
+        canMarkIrrelevant: canMarkIrrelevant(session.role),
+        canViewPending: canViewPending(session.role),
+        permissions: isOwnerRole(session.role)
+          ? { ...OWNER_FULL, show_export: true }
+          : permissions,
       },
       { headers: noStoreHeaders() },
     );
@@ -281,13 +334,14 @@ export async function GET(request: Request) {
   }
 }
 
-/** Approve / reject / mark irrelevant — owner + management only. */
+/**
+ * Approve / reject — owner + IT manager.
+ * Mark irrelevant — owner + management + IT manager.
+ * Owner always allowed when session is owner.
+ */
 export async function PATCH(request: Request) {
   const session = await getStaffSessionFromRequest(request);
-  if (
-    !session ||
-    (session.role !== "owner" && session.role !== "management")
-  ) {
+  if (!session) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401, headers: noStoreHeaders() },
@@ -295,8 +349,12 @@ export async function PATCH(request: Request) {
   }
 
   let id = "";
-  let action: "approve" | "reject" | "mark_irrelevant" | "clear_irrelevant" | null =
-    null;
+  let action:
+    | "approve"
+    | "reject"
+    | "mark_irrelevant"
+    | "clear_irrelevant"
+    | null = null;
 
   try {
     const body = (await request.json()) as {
@@ -326,6 +384,29 @@ export async function PATCH(request: Request) {
           "id and action (approve | reject | mark_irrelevant | clear_irrelevant) are required",
       },
       { status: 400, headers: noStoreHeaders() },
+    );
+  }
+
+  if (
+    (action === "approve" || action === "reject") &&
+    !canApproveFeedback(session.role)
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Only the IT manager or owner can approve feedback into the live system.",
+      },
+      { status: 403, headers: noStoreHeaders() },
+    );
+  }
+
+  if (
+    (action === "mark_irrelevant" || action === "clear_irrelevant") &&
+    !canMarkIrrelevant(session.role)
+  ) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: noStoreHeaders() },
     );
   }
 
@@ -363,7 +444,7 @@ export async function PATCH(request: Request) {
       console.error("feedback patch failed", error);
       return NextResponse.json(
         {
-          error: `Could not update feedback: ${error.message}. Run batch 4 migrations if needed.`,
+          error: `Could not update feedback: ${error.message}. Run batch 4–5 migrations if needed.`,
         },
         { status: 500, headers: noStoreHeaders() },
       );

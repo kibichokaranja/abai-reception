@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { validateSubmitLocation } from "@/lib/geofence";
+import { validateSubmitNetwork } from "@/lib/geofence";
 import { getSupabaseAnonClient } from "@/lib/supabase";
 import { describeAnonKeySource, getSupabaseUrl } from "@/lib/supabase-env";
 import {
@@ -94,6 +94,9 @@ function migrationHint(message: string | undefined, code: string | undefined): s
   }
   if (/room_number/i.test(message ?? "")) {
     return " Run supabase/migrations/20260334_guest_feedback_room_number.sql in the Supabase SQL Editor, then Redeploy.";
+  }
+  if (/submit_ip/i.test(message ?? "")) {
+    return " Run supabase/migrations/20260339_guest_feedback_submit_ip.sql in the Supabase SQL Editor, then Redeploy.";
   }
   if (/submit_lat|submit_lng/i.test(message ?? "")) {
     return " Run supabase/migrations/20260337_guest_feedback_geofence_coords.sql in the Supabase SQL Editor, then Redeploy.";
@@ -207,17 +210,12 @@ function parseOptionalRatingField(
   return { ok: true, value: value as number | null };
 }
 
-function requireGeofence(body: Record<string, unknown>) {
-  const check = validateSubmitLocation(body.submit_lat, body.submit_lng);
-  if (!check.ok) {
-    return { error: check.error } as const;
-  }
-  return { lat: check.lat, lng: check.lng } as const;
-}
-
-async function handleV2(body: Record<string, unknown>) {
-  const location = requireGeofence(body);
-  if ("error" in location) {
+async function handleV2(
+  body: Record<string, unknown>,
+  request: Request,
+) {
+  const location = validateSubmitNetwork(request);
+  if (!location.ok) {
     return NextResponse.json({ error: location.error }, { status: 403 });
   }
 
@@ -331,14 +329,18 @@ async function handleV2(body: Record<string, unknown>) {
     comment: identity.comment,
     approval_status: "pending",
     is_irrelevant: false,
-    submit_lat: location.lat,
-    submit_lng: location.lng,
+    submit_lat: null,
+    submit_lng: null,
+    submit_ip: location.ip,
   });
 }
 
-async function handleLegacy(body: Partial<GuestFeedbackInput> & Record<string, unknown>) {
-  const location = requireGeofence(body);
-  if ("error" in location) {
+async function handleLegacy(
+  body: Partial<GuestFeedbackInput> & Record<string, unknown>,
+  request: Request,
+) {
+  const location = validateSubmitNetwork(request);
+  if (!location.ok) {
     return NextResponse.json({ error: location.error }, { status: 403 });
   }
 
@@ -380,8 +382,9 @@ async function handleLegacy(body: Partial<GuestFeedbackInput> & Record<string, u
     recommend: body.recommend,
     approval_status: "pending",
     is_irrelevant: false,
-    submit_lat: location.lat,
-    submit_lng: location.lng,
+    submit_lat: null,
+    submit_lng: null,
+    submit_ip: location.ip,
   });
 }
 
@@ -395,9 +398,9 @@ export async function POST(request: Request) {
 
   try {
     if (isSurveyV2Body(body)) {
-      return await handleV2(body);
+      return await handleV2(body, request);
     }
-    return await handleLegacy(body);
+    return await handleLegacy(body, request);
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : "Unknown server error";

@@ -9,8 +9,8 @@ type TapChoicesBaseProps<T extends string | number> = {
   label: string;
   options: readonly Choice<T>[] | Choice<T>[];
   columns?: 2 | 3 | 5 | 6;
-  /** Optional question number shown before the label (e.g. "1."). */
-  number?: number;
+  /** Optional question number shown before the label (e.g. "1." or "2.1."). */
+  number?: number | string;
 };
 
 type SingleProps<T extends string | number> = TapChoicesBaseProps<T> & {
@@ -43,7 +43,7 @@ export function TapChoices<T extends string | number>(
           : "grid-cols-5";
 
   const legend =
-    number != null ? `${number}. ${label}` : label;
+    number != null && number !== "" ? `${number}. ${label}` : label;
 
   function isSelected(optionValue: T): boolean {
     if (props.multiple) {
@@ -65,7 +65,7 @@ export function TapChoices<T extends string | number>(
 
   return (
     <fieldset className="animate-fade-up space-y-3">
-      <legend className="max-w-full font-display text-lg font-semibold leading-snug text-abai-ink sm:text-xl">
+      <legend className="max-w-full text-base font-medium leading-snug text-abai-ink sm:text-lg">
         {legend}
       </legend>
       {props.multiple ? (

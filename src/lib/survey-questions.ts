@@ -80,17 +80,17 @@ export const SURVEY_QUESTION_SLIDES: SurveyQuestionSlide[] = [
   },
   {
     number: 8,
-    key: "recreational_leisure",
-    shortLabel: "Leisure",
-    fullLabel:
-      "What was your impression of our recreational and leisure facilities?",
+    key: "spa_experience",
+    shortLabel: "Spa",
+    fullLabel: "How would you describe the quality of your spa experience?",
     kind: "rating",
   },
   {
     number: 9,
-    key: "spa_experience",
-    shortLabel: "Spa",
-    fullLabel: "How would you describe the quality of your spa experience?",
+    key: "recreational_leisure",
+    shortLabel: "Leisure",
+    fullLabel:
+      "What was your impression of our recreational and leisure facilities?",
     kind: "rating",
   },
   {
