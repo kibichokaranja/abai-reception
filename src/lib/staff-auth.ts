@@ -10,6 +10,12 @@ const BCRYPT_ROUNDS = 10;
 
 export type StaffRole = StaffUserRole;
 
+/** Session payload. userId is set for DB-authenticated logins; omitted for env bootstrap. */
+export type StaffSession = {
+  role: StaffRole;
+  userId?: string;
+};
+
 function getSecret(): Uint8Array {
   const secret = process.env.STAFF_SESSION_SECRET;
   if (!secret || secret.length < 16) {
@@ -133,7 +139,10 @@ export async function authenticatePortalLogin(options: {
   role: StaffRole;
   username?: string;
   password: string;
-}): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+}): Promise<
+  | { ok: true; userId?: string }
+  | { ok: false; error: string; status: number }
+> {
   const password = options.password;
   const username = options.username?.trim() ?? "";
 
@@ -181,7 +190,7 @@ export async function authenticatePortalLogin(options: {
           status: 401,
         };
       }
-      return { ok: true };
+      return { ok: true, userId: data.id as string };
     } catch (err) {
       console.error(err);
       return {
@@ -242,8 +251,13 @@ export async function authenticatePortalLogin(options: {
   return { ok: true };
 }
 
-export async function createStaffSessionToken(role: StaffRole): Promise<string> {
-  return new SignJWT({ role })
+export async function createStaffSessionToken(
+  role: StaffRole,
+  userId?: string,
+): Promise<string> {
+  const payload: { role: StaffRole; userId?: string } = { role };
+  if (userId) payload.userId = userId;
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
@@ -262,19 +276,23 @@ function normalizeRole(raw: unknown): StaffRole | null {
 
 async function verifySessionToken(
   token: string | undefined | null,
-): Promise<{ role: StaffRole } | null> {
+): Promise<StaffSession | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, getSecret());
     const role = normalizeRole(payload.role);
     if (!role) return null;
-    return { role };
+    const userId =
+      typeof payload.userId === "string" && payload.userId.length > 0
+        ? payload.userId
+        : undefined;
+    return userId ? { role, userId } : { role };
   } catch {
     return null;
   }
 }
 
-export async function getStaffSession(): Promise<{ role: StaffRole } | null> {
+export async function getStaffSession(): Promise<StaffSession | null> {
   const jar = await cookies();
   const token = jar.get(STAFF_COOKIE)?.value;
   return verifySessionToken(token);
@@ -286,7 +304,7 @@ export async function getStaffSession(): Promise<{ role: StaffRole } | null> {
  */
 export async function getStaffSessionFromRequest(
   request: Request,
-): Promise<{ role: StaffRole } | null> {
+): Promise<StaffSession | null> {
   const fromJar = await getStaffSession();
   if (fromJar) return fromJar;
 

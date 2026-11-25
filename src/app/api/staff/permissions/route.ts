@@ -1,22 +1,20 @@
 import { NextResponse } from "next/server";
 import {
+  DASHBOARD_PERMISSION_FIELDS,
   listDashboardPermissions,
-  upsertDashboardPermissions,
+  listStaffUsersWithPermissions,
+  upsertUserDashboardPermissions,
   type DashboardPermissionKey,
   type DashboardRole,
-  DASHBOARD_PERMISSION_FIELDS,
 } from "@/lib/dashboard-permissions";
 import { getStaffSessionFromRequest } from "@/lib/staff-auth";
+import { getSupabaseAdminClient } from "@/lib/supabase-admin";
+import type { StaffUserRole } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const ROLE_SET = new Set<DashboardRole>(["management", "reception"]);
 const KEY_SET = new Set(DASHBOARD_PERMISSION_FIELDS.map((f) => f.key));
-
-function isDashboardRole(value: unknown): value is DashboardRole {
-  return typeof value === "string" && ROLE_SET.has(value as DashboardRole);
-}
 
 function noStoreHeaders(
   extra: Record<string, string> = {},
@@ -44,10 +42,15 @@ export async function GET(request: Request) {
   }
 
   try {
-    const permissions = await listDashboardPermissions();
+    const [users, roleDefaults] = await Promise.all([
+      listStaffUsersWithPermissions(),
+      listDashboardPermissions(),
+    ]);
     return NextResponse.json(
       {
-        permissions,
+        users,
+        /** Role-slot defaults kept for env-bootstrap / seeding reference. */
+        roleDefaults,
         fields: DASHBOARD_PERMISSION_FIELDS,
       },
       { headers: noStoreHeaders() },
@@ -71,15 +74,20 @@ export async function PUT(request: Request) {
     );
   }
 
-  let role: DashboardRole | null = null;
+  let staffUserId: string | null = null;
   const patch: Partial<Record<DashboardPermissionKey, boolean>> = {};
 
   try {
     const body = (await request.json()) as {
+      staffUserId?: string;
+      /** @deprecated role-slot saves — prefer staffUserId */
       role?: string;
       permissions?: Record<string, unknown>;
     };
-    role = isDashboardRole(body.role) ? body.role : null;
+    staffUserId =
+      typeof body.staffUserId === "string" && body.staffUserId.length > 0
+        ? body.staffUserId
+        : null;
     if (body.permissions && typeof body.permissions === "object") {
       for (const [key, value] of Object.entries(body.permissions)) {
         if (
@@ -97,9 +105,9 @@ export async function PUT(request: Request) {
     );
   }
 
-  if (!role) {
+  if (!staffUserId) {
     return NextResponse.json(
-      { error: "role must be management or reception" },
+      { error: "staffUserId is required" },
       { status: 400, headers: noStoreHeaders() },
     );
   }
@@ -111,14 +119,44 @@ export async function PUT(request: Request) {
   }
 
   try {
+    const supabase = getSupabaseAdminClient();
+    const { data: user, error } = await supabase
+      .from("staff_users")
+      .select("id, role")
+      .eq("id", staffUserId)
+      .maybeSingle();
+    if (error) {
+      throw new Error(`Could not look up user: ${error.message}`);
+    }
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404, headers: noStoreHeaders() },
+      );
+    }
+    const role = user.role as StaffUserRole;
+    if (role !== "management" && role !== "reception") {
+      return NextResponse.json(
+        {
+          error:
+            "Dashboard visibility is only editable for Management and Staff desk users",
+        },
+        { status: 400, headers: noStoreHeaders() },
+      );
+    }
+    const dashboardRole = role as DashboardRole;
     // Reception never gets the question carousel or approve right — ignore/force off.
-    if (role === "reception") {
+    if (dashboardRole === "reception") {
       patch.show_question_carousel = false;
       patch.can_approve_feedback = false;
     }
-    const saved = await upsertDashboardPermissions(role, patch);
+    const saved = await upsertUserDashboardPermissions(
+      staffUserId,
+      dashboardRole,
+      patch,
+    );
     return NextResponse.json(
-      { ok: true, permissions: saved },
+      { ok: true, permissions: saved, staffUserId },
       { headers: noStoreHeaders() },
     );
   } catch (err) {

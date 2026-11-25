@@ -301,7 +301,7 @@ export function GuestFeedbackForm() {
 
   if (thanks) {
     return (
-      <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-4 text-center">
+      <div className="guest-form-protect mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-4 text-center">
         <div className="animate-check-pop mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-abai-gold text-3xl text-abai-navy">
           ✓
         </div>
@@ -321,21 +321,6 @@ export function GuestFeedbackForm() {
   return (
     <form
       onSubmit={onSubmit}
-      onCopy={(e) => {
-        const tag = (e.target as HTMLElement | null)?.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA") return;
-        e.preventDefault();
-      }}
-      onCut={(e) => {
-        const tag = (e.target as HTMLElement | null)?.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA") return;
-        e.preventDefault();
-      }}
-      onContextMenu={(e) => {
-        const tag = (e.target as HTMLElement | null)?.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA") return;
-        e.preventDefault();
-      }}
       className="guest-form-protect mx-auto max-w-2xl space-y-8 px-4 py-8 sm:py-10"
     >
       <div className="animate-fade-up text-center">

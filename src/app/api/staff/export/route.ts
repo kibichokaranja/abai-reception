@@ -49,11 +49,26 @@ function rowHasLowScore(row: GuestFeedbackRow, threshold = 2.5): boolean {
   return false;
 }
 
-async function canExport(role: string): Promise<boolean> {
+async function canExport(session: {
+  role: string;
+  userId?: string;
+}): Promise<boolean> {
   // Owner always entitled — never Unauthorized on export.
-  if (isOwnerRole(role)) return true;
-  if (role === "management" || role === "reception") {
-    const perms = await getDashboardPermissions(role);
+  if (isOwnerRole(session.role)) return true;
+  if (session.role === "management" || session.role === "reception") {
+    if (session.userId) {
+      const { getUserDashboardPermissions } = await import(
+        "@/lib/dashboard-permissions"
+      );
+      const perms = await getUserDashboardPermissions(
+        session.userId,
+        session.role as "management" | "reception",
+      );
+      return perms.show_export;
+    }
+    const perms = await getDashboardPermissions(
+      session.role as "management" | "reception",
+    );
     return perms.show_export;
   }
   return false;
@@ -72,7 +87,7 @@ function noStoreHeaders(
 /** Export filtered feedback as PDF or Excel (owner, or role with show_export). */
 export async function GET(request: Request) {
   const session = await getStaffSessionFromRequest(request);
-  if (!session || !(await canExport(session.role))) {
+  if (!session || !(await canExport(session))) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401, headers: noStoreHeaders() },

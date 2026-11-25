@@ -309,6 +309,7 @@ export async function upsertDashboardPermissions(
 /** Owner always has full access; other roles use persisted flags. */
 export async function resolveEffectivePermissions(
   role: StaffUserRole,
+  userId?: string,
 ): Promise<DashboardPermissions | "owner-full"> {
   if (role === "owner") return "owner-full";
   if (role === "it_manager") {
@@ -329,5 +330,248 @@ export async function resolveEffectivePermissions(
   if (role === "website_api") {
     return defaultPermissionsForRole("reception");
   }
+  if (userId && (role === "management" || role === "reception")) {
+    return getUserDashboardPermissions(userId, role);
+  }
   return getDashboardPermissions(role);
+}
+
+const USER_PERM_SELECT =
+  "staff_user_id, show_analytics, show_category_averages, show_question_carousel, show_feedback_list, show_comments, show_guest_details, show_date_filters, show_low_score_filter, show_export, can_approve_feedback, updated_at";
+
+export type StaffUserPermissionRow = {
+  id: string;
+  display_name: string | null;
+  username: string;
+  role: StaffUserRole;
+  active: boolean;
+  created_at: string;
+  /** Editable only for management / reception. */
+  editable: boolean;
+  /** Fixed rights note for owner / IT / website_api. */
+  lockedNote?: string;
+  permissions: DashboardPermissions;
+};
+
+function lockedNoteForRole(role: StaffUserRole): string | undefined {
+  if (role === "owner") {
+    return "Owner always has full dashboard access — not editable per user.";
+  }
+  if (role === "it_manager") {
+    return "IT manager has fixed rights (including approve; no export) — not editable per user.";
+  }
+  if (role === "website_api") {
+    return "Website API has no dashboard — rights are not assigned here.";
+  }
+  return undefined;
+}
+
+async function selectUserPermissionsRow(
+  staffUserId: string,
+): Promise<Partial<DashboardPermissions> | null> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("dashboard_user_permissions")
+    .select(USER_PERM_SELECT)
+    .eq("staff_user_id", staffUserId)
+    .maybeSingle();
+  if (error) {
+    console.error("dashboard_user_permissions select failed", error);
+    if (/does not exist/i.test(error.message ?? "")) {
+      throw new Error(
+        `dashboard_user_permissions unavailable: ${error.message}. Run supabase/migrations/20260341_dashboard_user_permissions.sql.`,
+      );
+    }
+    return null;
+  }
+  return (data as Partial<DashboardPermissions> | null) ?? null;
+}
+
+/** Effective permissions for one management/reception user (falls back to role defaults). */
+export async function getUserDashboardPermissions(
+  staffUserId: string,
+  role: DashboardRole,
+): Promise<DashboardPermissions> {
+  try {
+    const data = await selectUserPermissionsRow(staffUserId);
+    if (!data) {
+      const defaults = await getDashboardPermissions(role);
+      try {
+        return await upsertUserDashboardPermissions(staffUserId, role, defaults);
+      } catch (seedErr) {
+        console.error("dashboard_user_permissions seed failed", seedErr);
+        return defaults;
+      }
+    }
+    return normalizeRow(role, data);
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      /dashboard_user_permissions unavailable/i.test(err.message)
+    ) {
+      // Table missing: fall back to role-slot so dashboards keep working until SQL runs.
+      console.error(err);
+      return getDashboardPermissions(role);
+    }
+    console.error("dashboard_user_permissions unavailable", err);
+    return getDashboardPermissions(role);
+  }
+}
+
+export async function upsertUserDashboardPermissions(
+  staffUserId: string,
+  role: DashboardRole,
+  patch: Partial<Omit<DashboardPermissions, "role" | "updated_at">>,
+): Promise<DashboardPermissions> {
+  let current: DashboardPermissions;
+  try {
+    const existing = await selectUserPermissionsRow(staffUserId);
+    current = existing
+      ? normalizeRow(role, existing)
+      : await getDashboardPermissions(role);
+  } catch {
+    current = defaultPermissionsForRole(role);
+  }
+  const next: DashboardPermissions = {
+    ...current,
+    ...patch,
+    role,
+    show_question_carousel:
+      role === "reception"
+        ? false
+        : Boolean(
+            patch.show_question_carousel ?? current.show_question_carousel,
+          ),
+    can_approve_feedback:
+      role === "reception"
+        ? false
+        : Boolean(patch.can_approve_feedback ?? current.can_approve_feedback),
+  };
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("dashboard_user_permissions")
+    .upsert(
+      {
+        staff_user_id: staffUserId,
+        show_analytics: next.show_analytics,
+        show_category_averages: next.show_category_averages,
+        show_question_carousel: next.show_question_carousel,
+        show_feedback_list: next.show_feedback_list,
+        show_comments: next.show_comments,
+        show_guest_details: next.show_guest_details,
+        show_date_filters: next.show_date_filters,
+        show_low_score_filter: next.show_low_score_filter,
+        show_export: next.show_export,
+        can_approve_feedback: next.can_approve_feedback,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "staff_user_id" },
+    )
+    .select(USER_PERM_SELECT)
+    .single();
+
+  if (error) {
+    const migrateHint = /does not exist/i.test(error.message ?? "")
+      ? " Run supabase/migrations/20260341_dashboard_user_permissions.sql."
+      : "";
+    throw new Error(
+      `Could not save user permissions: ${error.message}.${migrateHint}`,
+    );
+  }
+
+  return normalizeRow(role, data as Partial<DashboardPermissions>);
+}
+
+/** Seed per-user rights from role defaults when a management/reception user is created. */
+export async function seedUserDashboardPermissions(
+  staffUserId: string,
+  role: StaffUserRole,
+): Promise<void> {
+  if (role !== "management" && role !== "reception") return;
+  try {
+    const defaults = await getDashboardPermissions(role);
+    await upsertUserDashboardPermissions(staffUserId, role, defaults);
+  } catch (err) {
+    console.error("seedUserDashboardPermissions failed", err);
+  }
+}
+
+/** List every staff user with effective / locked visibility for the owner UI. */
+export async function listStaffUsersWithPermissions(): Promise<
+  StaffUserPermissionRow[]
+> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("staff_users")
+    .select("id, display_name, username, role, active, created_at")
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) {
+    throw new Error(
+      `Could not list staff users: ${error.message}. Run supabase/migrations/20260330_staff_users.sql if needed.`,
+    );
+  }
+
+  const users = (data ?? []) as Array<{
+    id: string;
+    display_name: string | null;
+    username: string;
+    role: StaffUserRole;
+    active: boolean;
+    created_at: string;
+  }>;
+
+  const rows: StaffUserPermissionRow[] = [];
+  for (const user of users) {
+    const editable = user.role === "management" || user.role === "reception";
+    let permissions: DashboardPermissions;
+    if (user.role === "owner") {
+      permissions = {
+        role: "management",
+        show_analytics: true,
+        show_category_averages: true,
+        show_question_carousel: true,
+        show_feedback_list: true,
+        show_comments: true,
+        show_guest_details: true,
+        show_date_filters: true,
+        show_low_score_filter: true,
+        show_export: true,
+        can_approve_feedback: true,
+      };
+    } else if (user.role === "it_manager") {
+      permissions = {
+        role: "management",
+        show_analytics: true,
+        show_category_averages: true,
+        show_question_carousel: true,
+        show_feedback_list: true,
+        show_comments: true,
+        show_guest_details: true,
+        show_date_filters: true,
+        show_low_score_filter: true,
+        show_export: false,
+        can_approve_feedback: true,
+      };
+    } else if (user.role === "website_api") {
+      permissions = defaultPermissionsForRole("reception");
+    } else {
+      permissions = await getUserDashboardPermissions(
+        user.id,
+        user.role as DashboardRole,
+      );
+    }
+    rows.push({
+      id: user.id,
+      display_name: user.display_name,
+      username: user.username,
+      role: user.role,
+      active: user.active,
+      created_at: user.created_at,
+      editable,
+      lockedNote: lockedNoteForRole(user.role),
+      permissions,
+    });
+  }
+  return rows;
 }

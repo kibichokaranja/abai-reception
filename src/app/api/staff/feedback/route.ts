@@ -129,9 +129,11 @@ function normalizeRows(data: unknown[]): GuestFeedbackRow[] {
   }));
 }
 
-async function permissionsForRole(
-  role: string,
-): Promise<DashboardPermissions> {
+async function permissionsForSession(session: {
+  role: string;
+  userId?: string;
+}): Promise<DashboardPermissions> {
+  const { role, userId } = session;
   if (isOwnerRole(role)) {
     return { ...OWNER_FULL };
   }
@@ -139,6 +141,15 @@ async function permissionsForRole(
     return { ...IT_MANAGER_PERMS };
   }
   if (role === "management" || role === "reception") {
+    if (userId) {
+      const { getUserDashboardPermissions } = await import(
+        "@/lib/dashboard-permissions"
+      );
+      return getUserDashboardPermissions(
+        userId,
+        role as "management" | "reception",
+      );
+    }
     return getDashboardPermissions(role);
   }
   // website_api has no dashboard; treat as empty
@@ -167,7 +178,7 @@ export async function GET(request: Request) {
   }
 
   // Owner is always fully entitled — never gate by management permission rows.
-  const permissions = await permissionsForRole(session.role);
+  const permissions = await permissionsForSession(session);
   if (session.role === "reception") {
     permissions.show_question_carousel = false;
   }
@@ -394,7 +405,7 @@ export async function PATCH(request: Request) {
   }
 
   if (action === "approve" || action === "reject") {
-    const permissions = await permissionsForRole(session.role);
+    const permissions = await permissionsForSession(session);
     const mayApprove = canApproveFeedback(session.role, {
       canApproveFeedback: permissions.can_approve_feedback,
     });

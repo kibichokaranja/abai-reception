@@ -6,47 +6,43 @@ import {
   type DashboardPermissionKey,
   type DashboardPermissions,
   type DashboardRole,
+  type StaffUserPermissionRow,
 } from "@/lib/dashboard-permissions";
-
-const ROLES: { value: DashboardRole; label: string }[] = [
-  { value: "management", label: "Management" },
-  { value: "reception", label: "Staff desk" },
-];
+import { STAFF_USERS_CHANGED_EVENT } from "@/lib/staff-users-events";
+import { STAFF_USER_ROLES } from "@/lib/types";
 
 export function OwnerPermissionsEditor() {
-  const [byRole, setByRole] = useState<Record<DashboardRole, DashboardPermissions> | null>(
-    null,
-  );
-  const [activeRole, setActiveRole] = useState<DashboardRole>("management");
+  const [users, setUsers] = useState<StaffUserPermissionRow[]>([]);
+  const [activeUserId, setActiveUserId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<DashboardPermissions | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preferUserId?: string | null) => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/staff/permissions", {
         credentials: "include",
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
       });
       const data = (await res.json()) as {
-        permissions?: DashboardPermissions[];
+        users?: StaffUserPermissionRow[];
         error?: string;
       };
       if (!res.ok) {
         throw new Error(data.error || "Could not load permissions");
       }
-      const map = {
-        management: data.permissions?.find((p) => p.role === "management"),
-        reception: data.permissions?.find((p) => p.role === "reception"),
-      };
-      if (!map.management || !map.reception) {
-        throw new Error("Permissions incomplete — run 20260332 migration");
-      }
-      setByRole({
-        management: map.management,
-        reception: map.reception,
+      const list = data.users ?? [];
+      setUsers(list);
+      setActiveUserId((prev) => {
+        const want = preferUserId ?? prev;
+        if (want && list.some((u) => u.id === want)) return want;
+        const firstEditable = list.find((u) => u.editable);
+        return firstEditable?.id ?? list[0]?.id ?? null;
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load permissions");
@@ -59,35 +55,46 @@ export function OwnerPermissionsEditor() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    function onUsersChanged() {
+      void load();
+    }
+    window.addEventListener(STAFF_USERS_CHANGED_EVENT, onUsersChanged);
+    return () => {
+      window.removeEventListener(STAFF_USERS_CHANGED_EVENT, onUsersChanged);
+    };
+  }, [load]);
+
+  const activeUser = users.find((u) => u.id === activeUserId) ?? null;
+
+  useEffect(() => {
+    if (!activeUser) {
+      setDraft(null);
+      return;
+    }
+    setDraft({ ...activeUser.permissions });
+  }, [activeUser]);
+
   function toggle(key: DashboardPermissionKey) {
-    setByRole((prev) => {
+    if (!activeUser?.editable || !draft) return;
+    setDraft((prev) => {
       if (!prev) return prev;
-      return {
-        ...prev,
-        [activeRole]: {
-          ...prev[activeRole],
-          [key]: !prev[activeRole][key],
-        },
-      };
+      return { ...prev, [key]: !prev[key] };
     });
     setMessage(null);
   }
 
   async function save() {
-    if (!byRole) return;
+    if (!activeUser?.editable || !draft) return;
     setSaving(true);
     setError(null);
     setMessage(null);
     try {
-      const current = byRole[activeRole];
+      const role = activeUser.role as DashboardRole;
       const permissions = Object.fromEntries(
-        permissionFieldsForRole(activeRole).map((f) => [
-          f.key,
-          current[f.key],
-        ]),
+        permissionFieldsForRole(role).map((f) => [f.key, draft[f.key]]),
       );
-      // Reception never gets the question carousel or approve-pending right.
-      if (activeRole === "reception") {
+      if (role === "reception") {
         permissions.show_question_carousel = false;
         permissions.can_approve_feedback = false;
       }
@@ -95,7 +102,10 @@ export function OwnerPermissionsEditor() {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: activeRole, permissions }),
+        body: JSON.stringify({
+          staffUserId: activeUser.id,
+          permissions,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -104,32 +114,10 @@ export function OwnerPermissionsEditor() {
       if (!res.ok) {
         throw new Error(data.error || "Could not save permissions");
       }
-      // Always reload from server so refresh/persistence matches what was saved.
-      const res2 = await fetch("/api/staff/permissions", {
-        credentials: "include",
-        cache: "no-store",
-      });
-      const data2 = (await res2.json()) as {
-        permissions?: DashboardPermissions[];
-        error?: string;
-      };
-      if (!res2.ok) {
-        throw new Error(data2.error || "Saved but could not reload permissions");
-      }
-      const map = {
-        management: data2.permissions?.find((p) => p.role === "management"),
-        reception: data2.permissions?.find((p) => p.role === "reception"),
-      };
-      if (!map.management || !map.reception) {
-        throw new Error("Permissions incomplete after save — run 20260332 migration");
-      }
-      setByRole({
-        management: map.management,
-        reception: map.reception,
-      });
-      const roleLabel =
-        activeRole === "reception" ? "Staff desk" : "Management";
-      setMessage(`Saved ${roleLabel} dashboard visibility.`);
+      await load(activeUser.id);
+      const label =
+        activeUser.display_name?.trim() || activeUser.username;
+      setMessage(`Saved dashboard visibility for ${label}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save");
     } finally {
@@ -137,7 +125,10 @@ export function OwnerPermissionsEditor() {
     }
   }
 
-  const current = byRole?.[activeRole];
+  const editableRole =
+    activeUser?.role === "management" || activeUser?.role === "reception"
+      ? (activeUser.role as DashboardRole)
+      : null;
 
   return (
     <section
@@ -149,77 +140,136 @@ export function OwnerPermissionsEditor() {
           Dashboard visibility
         </h2>
         <p className="mt-1 text-sm text-abai-muted">
-          Owner-only. Choose what management and staff desk see on their
-          dashboards, including whether management may approve pending reviews.
-          Changes persist across refresh. Staff users are listed under Staff
-          users above — newly created accounts appear there immediately.
+          Owner-only. Assign rights per created staff user (not only generic
+          Management / Staff desk slots). New users appear here immediately
+          after create. Owner and IT manager rights stay fixed; Website API has
+          no dashboard.
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {ROLES.map((r) => (
-          <button
-            key={r.value}
-            type="button"
-            onClick={() => {
-              setActiveRole(r.value);
-              setMessage(null);
-            }}
-            className={`min-h-10 rounded-lg px-4 text-sm font-medium ${
-              activeRole === r.value
-                ? "bg-abai-navy text-white"
-                : "border border-abai-navy/20 text-abai-navy hover:bg-abai-navy/5"
-            }`}
-          >
-            {r.label}
-          </button>
-        ))}
-      </div>
-
-      {loading || !current ? (
-        <p className="text-sm text-abai-muted">Loading permissions…</p>
+      {loading && users.length === 0 ? (
+        <p className="text-sm text-abai-muted">Loading users…</p>
+      ) : users.length === 0 ? (
+        <p className="text-sm text-abai-muted">
+          No staff users yet. Create one under Staff users above — it will show
+          here right away so you can assign rights.
+        </p>
       ) : (
-        <div className="space-y-3">
-          <ul className="space-y-2">
-            {permissionFieldsForRole(activeRole).map((field) => (
-              <li key={field.key}>
-                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-abai-navy/10 px-3 py-3 hover:bg-abai-navy/[0.02]">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(current[field.key])}
-                    onChange={() => toggle(field.key)}
-                    className="mt-1 size-4 accent-abai-gold"
-                  />
-                  <span>
-                    <span className="block text-sm font-medium text-abai-navy">
-                      {field.label}
-                    </span>
-                    <span className="block text-xs text-abai-muted">
-                      {field.hint}
-                    </span>
+        <>
+          <div className="flex flex-wrap gap-2">
+            {users.map((u) => {
+              const label = u.display_name?.trim() || u.username;
+              const roleLabel =
+                STAFF_USER_ROLES.find((r) => r.value === u.role)?.label ??
+                u.role;
+              return (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveUserId(u.id);
+                    setMessage(null);
+                  }}
+                  className={`min-h-10 max-w-full rounded-lg px-3 py-1.5 text-left text-sm font-medium ${
+                    activeUserId === u.id
+                      ? "bg-abai-navy text-white"
+                      : "border border-abai-navy/20 text-abai-navy hover:bg-abai-navy/5"
+                  }`}
+                >
+                  <span className="block truncate">{label}</span>
+                  <span
+                    className={`block text-xs font-normal ${
+                      activeUserId === u.id
+                        ? "text-white/80"
+                        : "text-abai-muted"
+                    }`}
+                  >
+                    {roleLabel}
+                    {!u.active ? " · inactive" : ""}
+                    {!u.editable ? " · fixed" : ""}
                   </span>
-                </label>
-              </li>
-            ))}
-          </ul>
-          {activeRole === "reception" ? (
-            <p className="text-xs text-abai-muted">
-              Question carousel and approve-pending are available on owner /
-              management (or IT) only — they cannot be enabled for staff desk.
-            </p>
-          ) : activeRole === "management" ? (
-            <p className="text-xs text-abai-muted">
-              “Approve pending reviews” lets management approve or reject into
-              the live system. IT manager and owner always can.
-            </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {activeUser && draft ? (
+            <div className="space-y-3">
+              {activeUser.lockedNote ? (
+                <p className="rounded-lg border border-abai-navy/10 bg-abai-navy/[0.03] px-3 py-2 text-sm text-abai-muted">
+                  {activeUser.lockedNote}
+                </p>
+              ) : null}
+
+              {editableRole ? (
+                <>
+                  <ul className="space-y-2">
+                    {permissionFieldsForRole(editableRole).map((field) => (
+                      <li key={field.key}>
+                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-abai-navy/10 px-3 py-3 hover:bg-abai-navy/[0.02]">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(draft[field.key])}
+                            onChange={() => toggle(field.key)}
+                            disabled={!activeUser.editable}
+                            className="mt-1 size-4 accent-abai-gold"
+                          />
+                          <span>
+                            <span className="block text-sm font-medium text-abai-navy">
+                              {field.label}
+                            </span>
+                            <span className="block text-xs text-abai-muted">
+                              {field.hint}
+                            </span>
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  {editableRole === "reception" ? (
+                    <p className="text-xs text-abai-muted">
+                      Question carousel and approve-pending cannot be enabled
+                      for staff desk users.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-abai-muted">
+                      “Approve pending reviews” lets this management user
+                      approve or reject into the live system. IT manager and
+                      owner always can.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <ul className="space-y-1 text-sm text-abai-muted">
+                  {Object.entries({
+                    Analytics: draft.show_analytics,
+                    "Category averages": draft.show_category_averages,
+                    Carousel: draft.show_question_carousel,
+                    "Review rows": draft.show_feedback_list,
+                    Comments: draft.show_comments,
+                    "Guest details": draft.show_guest_details,
+                    "Date filters": draft.show_date_filters,
+                    "Low-score filter": draft.show_low_score_filter,
+                    Export: draft.show_export,
+                    Approve: draft.can_approve_feedback,
+                  }).map(([label, on]) => (
+                    <li key={label}>
+                      {on ? "✓" : "–"} {label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           ) : null}
-        </div>
+        </>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          disabled={saving || loading || !current}
+          disabled={
+            saving || loading || !activeUser?.editable || !draft
+          }
           onClick={() => void save()}
           className="min-h-10 rounded-lg bg-abai-gold px-4 text-sm font-semibold text-abai-navy disabled:opacity-70"
         >
@@ -228,7 +278,7 @@ export function OwnerPermissionsEditor() {
         <button
           type="button"
           disabled={loading}
-          onClick={() => void load()}
+          onClick={() => void load(activeUserId)}
           className="min-h-10 rounded-lg border border-abai-navy/20 px-4 text-sm font-medium text-abai-navy"
         >
           Reload
