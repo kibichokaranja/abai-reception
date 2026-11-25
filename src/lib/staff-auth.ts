@@ -327,20 +327,29 @@ export function isOwnerRole(role: string | null | undefined): boolean {
   return role === "owner";
 }
 
-export function canApproveFeedback(role: string | null | undefined): boolean {
-  return role === "owner" || role === "it_manager";
+/**
+ * Approve into live system: owner + IT manager always.
+ * Management only when owner grants can_approve_feedback.
+ */
+export function canApproveFeedback(
+  role: string | null | undefined,
+  options?: { canApproveFeedback?: boolean },
+): boolean {
+  if (role === "owner" || role === "it_manager") return true;
+  if (role === "management" && options?.canApproveFeedback) return true;
+  return false;
 }
 
+/** Owner, IT, and management may view the pending queue (approve still gated). */
 export function canViewPending(role: string | null | undefined): boolean {
   return (
     role === "owner" || role === "management" || role === "it_manager"
   );
 }
 
+/** Mark irrelevant: IT manager and admin/owner only. */
 export function canMarkIrrelevant(role: string | null | undefined): boolean {
-  return (
-    role === "owner" || role === "management" || role === "it_manager"
-  );
+  return role === "owner" || role === "it_manager";
 }
 
 export function staffCookieOptions(maxAge = SESSION_TTL_SECONDS) {

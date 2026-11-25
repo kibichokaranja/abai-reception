@@ -42,8 +42,7 @@ export default async function PublicReviewsPage() {
           Guest reviews
         </h1>
         <p className="mt-2 text-abai-muted">
-          Top positive experiences from the last three months at Abai Lodges
-          &amp; Spa. Reviews older than one year are not shown.
+          The 10 most recent positive guest reviews at Abai Lodges &amp; Spa.
         </p>
 
         {reviews.length === 0 ? (

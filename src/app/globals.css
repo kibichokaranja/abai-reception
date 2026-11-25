@@ -96,13 +96,15 @@ body {
 }
 
 /**
- * Soften casual screenshots / print of the guest form where the web platform allows.
- * Limits: OS screenshot tools and phone cameras of a printed/screen form cannot be blocked.
+ * Best-effort hardenings against casual copy / print / in-browser capture of the guest form.
+ * Limits: OS screenshot tools and phone cameras aimed at a physical screen cannot be blanked
+ * by a web app — do not claim otherwise to guests.
  */
 .guest-form-protect {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
+  -webkit-user-drag: none;
 }
 
 .guest-form-protect input,
@@ -111,15 +113,34 @@ body {
   user-select: text;
 }
 
+.guest-form-protect img,
+.guest-form-protect svg {
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
+}
+
 @media print {
+  html,
+  body {
+    background: #fff !important;
+  }
   body * {
     visibility: hidden !important;
   }
-  body::after {
-    content: "";
+  body::before {
+    content: "Guest feedback is for on-site use only.";
     visibility: visible !important;
     position: fixed;
     inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
     background: #fff;
+    color: #161141;
+    font-family: system-ui, sans-serif;
+    font-size: 1.125rem;
+    text-align: center;
   }
 }

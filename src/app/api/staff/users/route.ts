@@ -141,7 +141,10 @@ export async function POST(request: Request) {
   }
   if (!role) {
     return NextResponse.json(
-      { error: "Role must be owner, management, or reception" },
+      {
+        error:
+          "Role must be owner, management, reception, it_manager, or website_api",
+      },
       { status: 400, headers: noStoreHeaders() },
     );
   }

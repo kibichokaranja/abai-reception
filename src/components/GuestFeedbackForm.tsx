@@ -321,12 +321,31 @@ export function GuestFeedbackForm() {
   return (
     <form
       onSubmit={onSubmit}
+      onCopy={(e) => {
+        const tag = (e.target as HTMLElement | null)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA") return;
+        e.preventDefault();
+      }}
+      onCut={(e) => {
+        const tag = (e.target as HTMLElement | null)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA") return;
+        e.preventDefault();
+      }}
+      onContextMenu={(e) => {
+        const tag = (e.target as HTMLElement | null)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA") return;
+        e.preventDefault();
+      }}
       className="guest-form-protect mx-auto max-w-2xl space-y-8 px-4 py-8 sm:py-10"
     >
       <div className="animate-fade-up text-center">
         <h1 className="font-display text-3xl font-semibold text-abai-navy sm:text-4xl">
           Guest Feedback
         </h1>
+        <p className="mx-auto mt-2 max-w-md text-sm text-abai-muted">
+          For on-site guests at Abai Lodges &amp; Spa. Please complete the form
+          here rather than copying or printing it.
+        </p>
       </div>
 
       <div className="animate-fade-up grid gap-4 sm:grid-cols-3">

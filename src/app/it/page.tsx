@@ -15,11 +15,13 @@ export default async function ItManagerPage() {
           canExport={false}
           canManageUsers={false}
           canModerate
+          defaultPendingMode
+          reviewGateEmphasis
         />
       ) : (
         <StaffLoginForm
           title="IT manager login"
-          description="Approve pending guest feedback before it becomes a live system review. Until an IT manager user exists, the env bootstrap password alone still works."
+          description="Manage the review gate: approve or reject pending guest feedback before it enters the live system. Until an IT manager user exists, the env bootstrap password alone still works."
           loginPath="/api/it/login"
         />
       )}

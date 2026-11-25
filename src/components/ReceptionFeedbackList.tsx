@@ -31,6 +31,7 @@ export function ReceptionFeedbackList() {
   const [toDate, setToDate] = useState(
     () => defaultReceptionVisitWindow(7).to,
   );
+  const [tableExpanded, setTableExpanded] = useState(true);
 
   const effective = permissions ?? defaultPermissionsForRole("reception");
 
@@ -200,70 +201,97 @@ export function ReceptionFeedbackList() {
       ) : null}
 
       {!error && effective.show_feedback_list ? (
-        <div className="overflow-x-auto rounded-xl border border-abai-navy/10 bg-white">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-abai-navy text-white">
-              <tr>
-                <th className="px-3 py-3 font-medium">Visit</th>
-                {effective.show_guest_details ? (
-                  <>
-                    <th className="px-3 py-3 font-medium">Guest</th>
-                    <th className="px-3 py-3 font-medium">Phone</th>
-                    <th className="px-3 py-3 font-medium">Room</th>
-                  </>
-                ) : null}
-                <th className="px-3 py-3 font-medium">Overall</th>
-                {effective.show_comments ? (
-                  <th className="px-3 py-3 font-medium">Comment</th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody>
-              {listRows.length === 0 && !loading ? (
-                <tr>
-                  <td
-                    colSpan={
-                      2 +
-                      (effective.show_guest_details ? 3 : 0) +
-                      (effective.show_comments ? 1 : 0)
-                    }
-                    className="px-3 py-8 text-center text-abai-muted"
-                  >
-                    No approved feedback in this date range.
-                  </td>
-                </tr>
-              ) : null}
-              {listRows.map((row) => (
-                <tr key={row.id} className="border-t border-abai-navy/10">
-                  <td className="whitespace-nowrap px-3 py-3">
-                    {row.visit_date || "—"}
-                  </td>
-                  {effective.show_guest_details ? (
-                    <>
-                      <td className="px-3 py-3">
-                        {row.guest_name?.trim() || "—"}
+        <section
+          aria-label="Feedback table"
+          className="space-y-3 rounded-xl border border-abai-navy/10 bg-white p-4"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-abai-navy">
+                Feedback table
+              </h2>
+              <p className="mt-0.5 text-sm text-abai-muted">{countLabel}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTableExpanded((v) => !v)}
+              aria-expanded={tableExpanded}
+              className="min-h-10 rounded-lg bg-abai-navy px-4 text-sm font-medium text-white"
+            >
+              {tableExpanded ? "Collapse table" : "Expand table"}
+            </button>
+          </div>
+          {tableExpanded ? (
+            <div className="overflow-x-auto rounded-lg border border-abai-navy/10">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-abai-navy text-white">
+                  <tr>
+                    <th className="px-3 py-3 font-medium">Visit</th>
+                    {effective.show_guest_details ? (
+                      <>
+                        <th className="px-3 py-3 font-medium">Guest</th>
+                        <th className="px-3 py-3 font-medium">Phone</th>
+                        <th className="px-3 py-3 font-medium">Room</th>
+                      </>
+                    ) : null}
+                    <th className="px-3 py-3 font-medium">Overall</th>
+                    {effective.show_comments ? (
+                      <th className="px-3 py-3 font-medium">Comment</th>
+                    ) : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {listRows.length === 0 && !loading ? (
+                    <tr>
+                      <td
+                        colSpan={
+                          2 +
+                          (effective.show_guest_details ? 3 : 0) +
+                          (effective.show_comments ? 1 : 0)
+                        }
+                        className="px-3 py-8 text-center text-abai-muted"
+                      >
+                        No approved feedback in this date range.
                       </td>
-                      <td className="px-3 py-3">
-                        {row.phone?.trim() || "—"}
-                      </td>
-                      <td className="px-3 py-3">
-                        {row.room_number?.trim() || "—"}
-                      </td>
-                    </>
+                    </tr>
                   ) : null}
-                  <td className="px-3 py-3">
-                    {row.overall_experience ?? row.overall_stay ?? "—"}
-                  </td>
-                  {effective.show_comments ? (
-                    <td className="max-w-[16rem] px-3 py-3">
-                      {row.comment?.trim() || "—"}
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  {listRows.map((row) => (
+                    <tr key={row.id} className="border-t border-abai-navy/10">
+                      <td className="whitespace-nowrap px-3 py-3">
+                        {row.visit_date || "—"}
+                      </td>
+                      {effective.show_guest_details ? (
+                        <>
+                          <td className="px-3 py-3">
+                            {row.guest_name?.trim() || "—"}
+                          </td>
+                          <td className="px-3 py-3">
+                            {row.phone?.trim() || "—"}
+                          </td>
+                          <td className="px-3 py-3">
+                            {row.room_number?.trim() || "—"}
+                          </td>
+                        </>
+                      ) : null}
+                      <td className="px-3 py-3">
+                        {row.overall_experience ?? row.overall_stay ?? "—"}
+                      </td>
+                      {effective.show_comments ? (
+                        <td className="max-w-[16rem] px-3 py-3">
+                          {row.comment?.trim() || "—"}
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-abai-muted">
+              Table collapsed. Use Expand table to show rows again.
+            </p>
+          )}
+        </section>
       ) : null}
 
       {!error && !anySection ? (

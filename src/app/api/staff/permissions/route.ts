@@ -111,9 +111,10 @@ export async function PUT(request: Request) {
   }
 
   try {
-    // Reception never gets the question carousel — ignore/force off.
+    // Reception never gets the question carousel or approve right — ignore/force off.
     if (role === "reception") {
       patch.show_question_carousel = false;
+      patch.can_approve_feedback = false;
     }
     const saved = await upsertDashboardPermissions(role, patch);
     return NextResponse.json(

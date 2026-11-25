@@ -3,11 +3,11 @@
 Front-desk / QR guest feedback for **Abai Lodges & Spa** (“Exclusivity Redefined”).
 
 - Guest kiosk form at `/` — **Guest Feedback**; conditional questions by services; room number; **server-side IP geofence** (no browser location prompt); consent required; thank-you welcome-back copy; footer **Powered by OrbitXSolutions** (pink **X**)
-- **Owner** at `/staff` — username + password (or env bootstrap); analytics, full-question carousel, pending queue, irrelevant filter, Abai-themed PDF / Excel export, create/edit/delete users (incl. IT manager + Website API roles), **dashboard visibility** editor; **all rights**
-- **Management** at `/management` — title **Management**; can **see** pending as-is; cannot approve live reviews
-- **IT manager** at `/it` — must **approve** before feedback becomes a live system review (owner can also approve)
+- **Owner** at `/staff` — username + password (or env bootstrap); analytics, full-question carousel, pending queue, mark irrelevant, Abai-themed PDF / Excel export, create/edit/delete users (incl. IT manager + Website API roles), **dashboard visibility** editor (incl. grantable **approve pending** for management); **all rights**
+- **Management** at `/management` — title **Management**; can **see** pending; approves live reviews only when owner grants **Approve pending reviews**
+- **IT manager** at `/it` — review gate: approve/reject pending before live system (owner can also approve); mark irrelevant
 - **Staff desk** at `/reception` — **approved** feedback only; visibility controlled by owner
-- **Public reviews** at `/reviews` + **Website API** `GET /api/website/reviews` (API key) — top 10 positive last 3 months; expire after 1 year
+- **Public reviews** at `/reviews` — copy: 10 most recent positive guest reviews; **Website API** still selects top 10 positive in last 3 months (expire after 1 year)
 - Supabase Postgres + RLS; Vercel-ready Next.js App Router + Tailwind
 
 ## Stack
@@ -55,6 +55,7 @@ Open [http://localhost:3000](http://localhost:3000) (guest), [/staff](http://loc
 | [`20260337_guest_feedback_geofence_coords.sql`](supabase/migrations/20260337_guest_feedback_geofence_coords.sql) | Legacy **`submit_lat` / `submit_lng`** (kept; unused by batch 5) |
 | [`20260338_staff_users_it_website_roles.sql`](supabase/migrations/20260338_staff_users_it_website_roles.sql) | Roles **`it_manager`** + **`website_api`** |
 | [`20260339_guest_feedback_submit_ip.sql`](supabase/migrations/20260339_guest_feedback_submit_ip.sql) | **`submit_ip`** server geofence audit |
+| [`20260340_dashboard_permissions_approve.sql`](supabase/migrations/20260340_dashboard_permissions_approve.sql) | **`can_approve_feedback`** (owner-grantable for management) |
 
 ### RLS summary
 
@@ -94,7 +95,7 @@ Repo includes `vercel.json` with `"framework": "nextjs"`.
 
 1. Import `kibichokaranja/abai-reception`.
 2. Paste env vars for Production (especially `ABAI_GEOFENCE_ALLOWLIST`, `IT_MANAGER_PASSWORD`, `WEBSITE_API_KEY`).
-3. Run any missing SQL (especially `20260338`–`20260339`) → **Redeploy**.
+3. Run any missing SQL (especially `20260340`) → **Redeploy**.
 4. Guest `/` · Owner `/staff` · Management `/management` · IT `/it` · Staff desk `/reception` · Reviews `/reviews`.
 
 ## Guest questions
@@ -105,7 +106,7 @@ Identity: **Name**, **Phone**, **Room number** (optional). Visit date is still s
 - With those services → service-specific questions use **2.1, 2.2, 2.3…**; spa quality comes **before** leisure.
 - Uniform question fonts; consent required; lodge-network IP required.
 
-New submissions start **pending** until **IT manager** (or **owner**) approves. Management can view pending but not approve. Dashboards (except pending queues) show **approved** only.
+New submissions start **pending** until **IT manager** or **owner** (or management with the approve-reviews grant) approves. Management can always **view** pending. **Mark irrelevant** is IT manager + owner only. Dashboards (except pending queues) show **approved** only.
 
 ## Website reviews API
 
@@ -123,19 +124,20 @@ Returns up to **10** positive approved reviews with comments from the **last 3 m
 | Category averages / carousel | ✓ | ✓ (default) | ✓ | ✓ averages (default); no carousel |
 | Feedback list | ✓ | ✓ (default) | ✓ | ✗ (default) |
 | See pending | ✓ | ✓ | ✓ | ✗ |
-| Approve / reject (live) | ✓ | ✗ | ✓ | ✗ |
-| Filters / ≤2.5 / hide irrelevant | ✓ | ✓ (default) | ✓ | Date only |
+| Approve / reject (live) | ✓ | grantable | ✓ | ✗ |
+| Mark irrelevant | ✓ | ✗ | ✓ | ✗ |
+| Filters / ≤2.5 / hide irrelevant | ✓ | ✓ (default; no mark) | ✓ | Date only |
 | PDF / Excel export | ✓ | ✗ (default) | ✗ | ✗ |
 | Create / edit / delete user | ✓ | ✗ | ✗ | ✗ |
 | Edit dashboard visibility | ✓ | ✗ | ✗ | ✗ |
 
 ## Smoke-test (after SQL + Redeploy)
 
-1. `/` — Guest Feedback; no location prompt; off-network IP → exact off-site error; spa before leisure; numbering 1–13 or 2.x.
-2. `/staff` — owner: low scores, export, approve, expand-all questions; never Unauthorized when entitled.
-3. `/management` — title **Management**; pending visible; Approve hidden / awaiting IT.
-4. `/it` — Approve pending → appears on approved dashboards + `/reviews`.
-5. `/api/website/reviews` with API key → top 10 positive.
+1. `/` — Guest Feedback; no location prompt; off-network IP → exact off-site error; print blanked; short on-site notice.
+2. `/staff` — owner: create user appears immediately; grant Approve pending; collapse/expand whole table; mark irrelevant; approve.
+3. `/management` — pending visible; Approve only if grant on; no Mark irrelevant.
+4. `/it` — opens on pending review gate; Approve → appears on approved dashboards + `/reviews`.
+5. `/reviews` — copy says 10 most recent positive guest reviews (no three-month / one-year wording).
 
 ## Scripts
 
