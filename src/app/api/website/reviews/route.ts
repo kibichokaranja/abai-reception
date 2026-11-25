@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { selectPublicReviews } from "@/lib/public-reviews";
+import {
+  queryPublicReviewCandidates,
+  selectPublicReviews,
+} from "@/lib/public-reviews";
 import {
   verifyWebsiteApiKey,
   websiteApiKeyConfigured,
   websiteApiKeyFromRequest,
 } from "@/lib/staff-auth";
-import { getSupabaseAdminClient } from "@/lib/supabase-admin";
-import { SURVEY_V2_SELECT_COLUMNS, type GuestFeedbackRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -33,8 +34,8 @@ export async function OPTIONS() {
 }
 
 /**
- * Hotel website API: top 10 positive approved reviews from the last 3 months
- * (eligible reviews expire after 1 year).
+ * Hotel website API: 10 most recent positive approved reviews from the last
+ * 3 months (eligible reviews expire after 1 year).
  *
  * Auth: `Authorization: Bearer <WEBSITE_API_KEY>` or `X-Api-Key: <WEBSITE_API_KEY>`.
  * Create a `website_api` staff user in the owner UI for documentation; the key
@@ -60,18 +61,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = getSupabaseAdminClient();
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-
-    const { data, error } = await supabase
-      .from("guest_feedback")
-      .select(SURVEY_V2_SELECT_COLUMNS)
-      .eq("approval_status", "approved")
-      .eq("is_irrelevant", false)
-      .gte("created_at", oneYearAgo.toISOString())
-      .order("created_at", { ascending: false })
-      .limit(500);
+    const { rows, error } = await queryPublicReviewCandidates();
 
     if (error) {
       console.error("website reviews select failed", error);
@@ -81,7 +71,6 @@ export async function GET(request: Request) {
       );
     }
 
-    const rows = (data ?? []) as unknown as GuestFeedbackRow[];
     const reviews = selectPublicReviews(rows);
 
     return NextResponse.json(
