@@ -37,7 +37,7 @@ export default async function PublicReviewsPage() {
             Guest reviews
           </h1>
           <p className="mt-2 max-w-xl text-abai-muted">
-            The 10 most recent positive guest reviews at Abai Lodges &amp; Spa.
+            The most recent guest reviews at Abai Lodges &amp; Spa.
           </p>
         </header>
 
