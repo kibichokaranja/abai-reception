@@ -84,7 +84,7 @@ Open [http://localhost:3000](http://localhost:3000) (guest), [/staff](http://loc
 
 - **No browser geolocation.** Submit checks the request IP against `ABAI_GEOFENCE_ALLOWLIST`.
 - Off-site error (exact): `Unable to submit from this location. Please use the form at Abai Lodges & Spa.`
-- Soften screenshots/print via CSS (`user-select` + blank print overlay). A web app **cannot** fully block phone photos of a screen/printout.
+- Soften copy/print via CSS + best-effort key intercepts (`user-select`, blank print overlay, Ctrl/Cmd+P/C discourage). A website **cannot** blank OS screenshot buttons or camera photos of the physical screen — do not claim otherwise.
 - Legacy `ABAI_GEOFENCE_LAT` / `LNG` / `RADIUS_M` are **ignored** — remove from Vercel after deploy.
 
 Once an active `staff_users` row exists for a role, that role’s env password stops working — use **username + password** instead.
@@ -95,7 +95,7 @@ Repo includes `vercel.json` with `"framework": "nextjs"`.
 
 1. Import `kibichokaranja/abai-reception`.
 2. Paste env vars for Production (especially `ABAI_GEOFENCE_ALLOWLIST`, `IT_MANAGER_PASSWORD`, `WEBSITE_API_KEY`).
-3. Run any missing SQL (especially `20260340`) → **Redeploy**.
+3. Run any missing SQL (especially `20260341` for per-user visibility) → **Redeploy**.
 4. Guest `/` · Owner `/staff` · Management `/management` · IT `/it` · Staff desk `/reception` · Reviews `/reviews`.
 
 ## Guest questions
@@ -129,15 +129,15 @@ Returns up to **10** positive approved reviews with comments from the **last 3 m
 | Filters / ≤2.5 / hide irrelevant | ✓ | ✓ (default; no mark) | ✓ | Date only |
 | PDF / Excel export | ✓ | ✗ (default) | ✗ | ✗ |
 | Create / edit / delete user | ✓ | ✗ | ✗ | ✗ |
-| Edit dashboard visibility | ✓ | ✗ | ✗ | ✗ |
+| Edit dashboard visibility (per user) | ✓ | ✗ | ✗ | ✗ |
 
 ## Smoke-test (after SQL + Redeploy)
 
-1. `/` — Guest Feedback; no location prompt; off-network IP → exact off-site error; print blanked; short on-site notice.
-2. `/staff` — owner: create user appears immediately; grant Approve pending; collapse/expand whole table; mark irrelevant; approve.
-3. `/management` — pending visible; Approve only if grant on; no Mark irrelevant.
+1. `/` — Guest Feedback; no location prompt; off-network IP → exact off-site error; print blanked; copy discourage; short on-site notice. OS screenshots/camera photos cannot be blocked.
+2. `/staff` — owner: create user appears immediately under Staff users **and** Dashboard visibility; assign rights per user (not only Management/Staff desk slots).
+3. `/management` — pending visible; Approve only if grant on for that user; no Mark irrelevant.
 4. `/it` — opens on pending review gate; Approve → appears on approved dashboards + `/reviews`.
-5. `/reviews` — copy says 10 most recent positive guest reviews (no three-month / one-year wording).
+5. `/reviews` — Abai navy/gold branding; copy says 10 most recent positive guest reviews (no timeline wording).
 
 ## Scripts
 

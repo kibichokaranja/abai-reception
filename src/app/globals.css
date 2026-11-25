@@ -97,8 +97,8 @@ body {
 
 /**
  * Best-effort hardenings against casual copy / print / in-browser capture of the guest form.
- * Limits: OS screenshot tools and phone cameras aimed at a physical screen cannot be blanked
- * by a web app — do not claim otherwise to guests.
+ * Limits: OS screenshot buttons (Print Screen, device capture) and phone/camera photos of the
+ * physical screen cannot be blanked by a website — do not claim otherwise to guests.
  */
 .guest-form-protect {
   -webkit-user-select: none;
@@ -120,16 +120,45 @@ body {
   pointer-events: none;
 }
 
+/* Guest route: stronger print blanking with Abai navy/gold notice (scoped via .guest-route). */
 @media print {
   html,
   body {
     background: #fff !important;
   }
-  body * {
+
+  body.guest-route * {
     visibility: hidden !important;
   }
-  body::before {
-    content: "Guest feedback is for on-site use only.";
+
+  body.guest-route::before {
+    content: "Guest feedback is for on-site use only · Abai Lodges & Spa";
+    visibility: visible !important;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: linear-gradient(180deg, #161141 0%, #0f0c2e 100%);
+    color: #d1a745;
+    font-family: system-ui, sans-serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-align: center;
+    border-top: 6px solid #d1a745;
+    border-bottom: 6px solid #d1a745;
+  }
+
+  /* Non-guest routes: light blanking so staff/print still fail closed on accidental print. */
+  body:not(.guest-route) * {
+    visibility: hidden !important;
+  }
+
+  body:not(.guest-route)::before {
+    content: "This page is not for printing.";
     visibility: visible !important;
     position: fixed;
     inset: 0;

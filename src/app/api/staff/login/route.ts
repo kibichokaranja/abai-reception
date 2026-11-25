@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const token = await createStaffSessionToken("owner");
+    const token = await createStaffSessionToken("owner", auth.userId);
     const response = NextResponse.json({ ok: true, role: "owner" });
     response.cookies.set(STAFF_COOKIE, token, staffCookieOptions());
     return response;

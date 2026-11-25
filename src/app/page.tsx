@@ -1,10 +1,11 @@
 import { BrandHeader } from "@/components/BrandHeader";
 import { GuestFeedbackForm } from "@/components/GuestFeedbackForm";
 import { GuestFormQr } from "@/components/GuestFormQr";
+import { GuestPageShell } from "@/components/GuestPageShell";
 
 export default function HomePage() {
   return (
-    <div className="min-h-dvh pb-20">
+    <GuestPageShell>
       <BrandHeader />
       <GuestFeedbackForm />
       <GuestFormQr />
@@ -19,6 +20,6 @@ export default function HomePage() {
           abailodges.com
         </a>
       </p>
-    </div>
+    </GuestPageShell>
   );
 }

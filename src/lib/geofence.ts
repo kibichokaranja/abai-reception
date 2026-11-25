@@ -8,8 +8,8 @@
  * ignored — keep them unset or remove from Vercel after deploy.
  *
  * Limits: IPs can be spoofed only if the edge trusts forged X-Forwarded-For;
- * on Vercel the platform sets the real client IP. A web app cannot fully block
- * photographing a printed or on-screen form — use allowlist + IT approval.
+ * on Vercel the platform sets the real client IP. A website cannot blank OS
+ * screenshot buttons or camera photos of the screen — use allowlist + IT approval.
  */
 
 export const OFFSITE_SUBMIT_ERROR =

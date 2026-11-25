@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { notifyStaffUsersChanged } from "@/lib/staff-users-events";
 import { STAFF_USER_ROLES, type StaffUserRole } from "@/lib/types";
 
 type StaffUserRow = {
@@ -96,6 +97,7 @@ export function StaffCreateUser() {
       setUsername("");
       setPassword("");
       setRole("reception");
+      notifyStaffUsersChanged();
       await loadUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create user");
@@ -141,6 +143,7 @@ export function StaffCreateUser() {
       }
       setMessage("User updated.");
       setEditingId(null);
+      notifyStaffUsersChanged();
       await loadUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update user");
@@ -167,6 +170,7 @@ export function StaffCreateUser() {
       }
       setMessage(`Deleted ${user.username}.`);
       if (editingId === user.id) setEditingId(null);
+      notifyStaffUsersChanged();
       await loadUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not delete user");
@@ -183,9 +187,9 @@ export function StaffCreateUser() {
           Staff users
         </h2>
         <p className="mt-1 text-sm text-abai-muted">
-          Owner-only. Create, edit, or delete users. New users appear here
-          immediately and are available for role assignment. Roles: owner,
-          management, staff desk, IT manager, website API.
+          Owner-only. Create, edit, or delete users. New users appear here and
+          under Dashboard visibility immediately so you can assign rights per
+          person. Roles: owner, management, staff desk, IT manager, website API.
         </p>
       </div>
 

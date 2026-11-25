@@ -188,6 +188,14 @@ export async function POST(request: Request) {
       );
     }
 
+    // Seed per-user visibility so Dashboard visibility lists the new account immediately.
+    if (data?.id) {
+      const { seedUserDashboardPermissions } = await import(
+        "@/lib/dashboard-permissions"
+      );
+      await seedUserDashboardPermissions(data.id as string, role);
+    }
+
     return NextResponse.json(
       { ok: true, user: data },
       { headers: noStoreHeaders() },
@@ -300,6 +308,17 @@ export async function PUT(request: Request) {
       return NextResponse.json(
         { error: `Could not update user: ${error.message}` },
         { status: 500, headers: noStoreHeaders() },
+      );
+    }
+
+    // When role becomes management/reception, ensure a per-user visibility row exists.
+    if (data?.id && (data.role === "management" || data.role === "reception")) {
+      const { seedUserDashboardPermissions } = await import(
+        "@/lib/dashboard-permissions"
+      );
+      await seedUserDashboardPermissions(
+        data.id as string,
+        data.role as StaffUserRole,
       );
     }
 
