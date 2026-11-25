@@ -14,6 +14,8 @@ export type DashboardPermissions = {
   show_date_filters: boolean;
   show_low_score_filter: boolean;
   show_export: boolean;
+  /** Management may approve/reject pending reviews when owner grants this. */
+  can_approve_feedback: boolean;
   updated_at?: string;
 };
 
@@ -32,6 +34,12 @@ export const DASHBOARD_PERMISSION_FIELDS = [
     key: "show_question_carousel" as const,
     label: "Question carousel",
     hint: "Slide through survey questions (owner + management only; never on staff desk)",
+    roles: ["management"] as const,
+  },
+  {
+    key: "can_approve_feedback" as const,
+    label: "Approve pending reviews",
+    hint: "Approve or reject guest feedback before it enters the live/approved system (IT manager always can)",
     roles: ["management"] as const,
   },
   {
@@ -80,6 +88,7 @@ const MANAGEMENT_DEFAULTS: DashboardPermissions = {
   show_date_filters: true,
   show_low_score_filter: true,
   show_export: false,
+  can_approve_feedback: false,
 };
 
 const RECEPTION_DEFAULTS: DashboardPermissions = {
@@ -94,6 +103,8 @@ const RECEPTION_DEFAULTS: DashboardPermissions = {
   show_date_filters: true,
   show_low_score_filter: false,
   show_export: false,
+  // Staff desk never approves into the live system.
+  can_approve_feedback: false,
 };
 
 /** Permission fields editable for a dashboard role in the owner UI. */
@@ -143,6 +154,11 @@ function normalizeRow(
       row.show_low_score_filter ?? defaults.show_low_score_filter,
     ),
     show_export: Boolean(row.show_export ?? defaults.show_export),
+    // Staff desk never approves, even if DB still has true.
+    can_approve_feedback:
+      role === "reception"
+        ? false
+        : Boolean(row.can_approve_feedback ?? defaults.can_approve_feedback),
     updated_at: typeof row.updated_at === "string" ? row.updated_at : undefined,
   };
 }
@@ -154,12 +170,30 @@ async function selectPermissionsRow(
   const { data, error } = await supabase
     .from("dashboard_permissions")
     .select(
-      "role, show_analytics, show_category_averages, show_question_carousel, show_feedback_list, show_comments, show_guest_details, show_date_filters, show_low_score_filter, show_export, updated_at",
+      "role, show_analytics, show_category_averages, show_question_carousel, show_feedback_list, show_comments, show_guest_details, show_date_filters, show_low_score_filter, show_export, can_approve_feedback, updated_at",
     )
     .eq("role", role)
     .maybeSingle();
   if (error) {
     console.error("dashboard_permissions select failed", error);
+    if (/can_approve_feedback/i.test(error.message ?? "")) {
+      // Column missing: fall back without the new flag until migration runs.
+      const fallback = await supabase
+        .from("dashboard_permissions")
+        .select(
+          "role, show_analytics, show_category_averages, show_question_carousel, show_feedback_list, show_comments, show_guest_details, show_date_filters, show_low_score_filter, show_export, updated_at",
+        )
+        .eq("role", role)
+        .maybeSingle();
+      if (fallback.error) {
+        console.error("dashboard_permissions fallback select failed", fallback.error);
+        return null;
+      }
+      return {
+        ...(fallback.data as Partial<DashboardPermissions> | null),
+        can_approve_feedback: false,
+      };
+    }
     if (/does not exist/i.test(error.message ?? "")) {
       throw new Error(
         `dashboard_permissions unavailable: ${error.message}. Run supabase/migrations/20260332_dashboard_permissions.sql.`,
@@ -230,6 +264,10 @@ export async function upsertDashboardPermissions(
         : Boolean(
             patch.show_question_carousel ?? current.show_question_carousel,
           ),
+    can_approve_feedback:
+      role === "reception"
+        ? false
+        : Boolean(patch.can_approve_feedback ?? current.can_approve_feedback),
   };
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
@@ -246,18 +284,22 @@ export async function upsertDashboardPermissions(
         show_date_filters: next.show_date_filters,
         show_low_score_filter: next.show_low_score_filter,
         show_export: next.show_export,
+        can_approve_feedback: next.can_approve_feedback,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "role" },
     )
     .select(
-      "role, show_analytics, show_category_averages, show_question_carousel, show_feedback_list, show_comments, show_guest_details, show_date_filters, show_low_score_filter, show_export, updated_at",
+      "role, show_analytics, show_category_averages, show_question_carousel, show_feedback_list, show_comments, show_guest_details, show_date_filters, show_low_score_filter, show_export, can_approve_feedback, updated_at",
     )
     .single();
 
   if (error) {
+    const migrateHint = /can_approve_feedback/i.test(error.message ?? "")
+      ? " Run supabase/migrations/20260340_dashboard_permissions_approve.sql."
+      : " Run supabase/migrations/20260332_dashboard_permissions.sql if needed.";
     throw new Error(
-      `Could not save permissions: ${error.message}. Run supabase/migrations/20260332_dashboard_permissions.sql if needed.`,
+      `Could not save permissions: ${error.message}.${migrateHint}`,
     );
   }
 
@@ -281,6 +323,7 @@ export async function resolveEffectivePermissions(
       show_date_filters: true,
       show_low_score_filter: true,
       show_export: false,
+      can_approve_feedback: true,
     };
   }
   if (role === "website_api") {

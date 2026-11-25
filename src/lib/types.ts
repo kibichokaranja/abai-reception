@@ -264,7 +264,10 @@ export const STAFF_USER_ROLES: { value: StaffUserRole; label: string }[] = [
 /** UI label for the reception role / portal (route stays `/reception`). */
 export const STAFF_DESK_LABEL = "Staff desk";
 
-/** Roles that may approve/reject feedback into the live system. */
+/**
+ * Roles that always may approve/reject into the live system.
+ * Management may also approve when dashboard_permissions.can_approve_feedback is on.
+ */
 export const APPROVER_ROLES: StaffUserRole[] = ["owner", "it_manager"];
 
 /** Roles that may view the pending approval queue. */
@@ -273,3 +276,6 @@ export const PENDING_VIEW_ROLES: StaffUserRole[] = [
   "management",
   "it_manager",
 ];
+
+/** Roles that may mark feedback irrelevant (IT + admin/owner only). */
+export const IRRELEVANT_ROLES: StaffUserRole[] = ["owner", "it_manager"];

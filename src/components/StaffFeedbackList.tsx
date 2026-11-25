@@ -184,6 +184,8 @@ function FeedbackRow({
   showComments,
   canApprove,
   canMarkIrrelevant,
+  detailOpen,
+  onToggleDetail,
   onAction,
 }: {
   row: GuestFeedbackRow;
@@ -191,12 +193,13 @@ function FeedbackRow({
   showComments: boolean;
   canApprove: boolean;
   canMarkIrrelevant: boolean;
+  detailOpen: boolean;
+  onToggleDetail: () => void;
   onAction: (
     id: string,
     action: "approve" | "reject" | "mark_irrelevant" | "clear_irrelevant",
   ) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const overall = overallForRow(row);
   const v2 = isSurveyV2Row(row);
   const visit = visitColumnLabel(row);
@@ -279,10 +282,10 @@ function FeedbackRow({
           <button
             type="button"
             className="text-xs font-medium text-abai-navy underline-offset-2 hover:underline"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
+            onClick={onToggleDetail}
+            aria-expanded={detailOpen}
           >
-            {open ? "Collapse" : "Expand all"}
+            {detailOpen ? "Hide detail" : "Show detail"}
           </button>
         </td>
         {showActions ? (
@@ -308,7 +311,7 @@ function FeedbackRow({
                   </>
                 ) : (
                   <span className="text-xs text-abai-muted">
-                    Awaiting IT manager
+                    Awaiting approval
                   </span>
                 )
               ) : canMarkIrrelevant ? (
@@ -335,7 +338,7 @@ function FeedbackRow({
           </td>
         ) : null}
       </tr>
-      {open ? (
+      {detailOpen ? (
         <tr className="border-t border-abai-navy/5 bg-white/70">
           <td colSpan={colSpan} className="px-3 py-4">
             <RowQuestionSlider row={row} />
@@ -363,6 +366,7 @@ const OWNER_DEFAULTS: DashboardPermissions = {
   show_date_filters: true,
   show_low_score_filter: true,
   show_export: true,
+  can_approve_feedback: true,
 };
 
 type Props = {
@@ -370,8 +374,12 @@ type Props = {
   canExport?: boolean;
   canManageUsers?: boolean;
   canEditPermissions?: boolean;
-  /** Owner + IT manager can approve; management sees pending. */
+  /** Owner + IT manager (+ management with grant) can moderate; management sees pending. */
   canModerate?: boolean;
+  /** Open on the pending-approval queue (IT dashboard). */
+  defaultPendingMode?: boolean;
+  /** Highlight the pre-live review gate section. */
+  reviewGateEmphasis?: boolean;
 };
 
 export function StaffFeedbackList({
@@ -380,6 +388,8 @@ export function StaffFeedbackList({
   canManageUsers = false,
   canEditPermissions = false,
   canModerate = false,
+  defaultPendingMode = false,
+  reviewGateEmphasis = false,
 }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState<GuestFeedbackRow[]>([]);
@@ -397,8 +407,12 @@ export function StaffFeedbackList({
   const [toDate, setToDate] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
   const [hideIrrelevant, setHideIrrelevant] = useState(true);
-  const [pendingMode, setPendingMode] = useState(false);
+  const [pendingMode, setPendingMode] = useState(defaultPendingMode);
   const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
+  const [tableExpanded, setTableExpanded] = useState(true);
+  const [openDetailIds, setOpenDetailIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const effectivePermissions = permissions ?? OWNER_DEFAULTS;
   const showGuestDetails =
@@ -462,6 +476,16 @@ export function StaffFeedbackList({
       setApiCanApprove(Boolean(data.canApprove));
       setApiCanMarkIrrelevant(Boolean(data.canMarkIrrelevant));
       setApiCanViewPending(Boolean(data.canViewPending));
+      // Drop detail expands for rows that are no longer in the list.
+      setOpenDetailIds((prev) => {
+        if (prev.size === 0) return prev;
+        const ids = new Set(list.map((r) => r.id));
+        const next = new Set<string>();
+        for (const id of prev) {
+          if (ids.has(id)) next.add(id);
+        }
+        return next;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
       setAnalytics(null);
@@ -493,13 +517,12 @@ export function StaffFeedbackList({
 
   const allowExport =
     canExport || role === "owner" || effectivePermissions.show_export;
+  // Trust API flags (owner/IT always; management only when grant is on).
   const canApprove =
     apiCanApprove || role === "owner" || role === "it_manager";
+  // Mark irrelevant: IT manager + admin/owner only (never management/reception).
   const canMarkIrrelevant =
-    apiCanMarkIrrelevant ||
-    role === "owner" ||
-    role === "management" ||
-    role === "it_manager";
+    apiCanMarkIrrelevant || role === "owner" || role === "it_manager";
   const canViewPendingQueue =
     canModerate ||
     apiCanViewPending ||
@@ -507,6 +530,23 @@ export function StaffFeedbackList({
     role === "management" ||
     role === "it_manager";
   const showActions = canApprove || canMarkIrrelevant;
+
+  function toggleRowDetail(id: string) {
+    setOpenDetailIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function expandAllRowDetails() {
+    setOpenDetailIds(new Set(rows.map((r) => r.id)));
+  }
+
+  function collapseAllRowDetails() {
+    setOpenDetailIds(new Set());
+  }
 
   async function logout() {
     await fetch("/api/staff/logout", {
@@ -708,10 +748,11 @@ export function StaffFeedbackList({
           {canMarkIrrelevant && !pendingMode ? (
             <p className="basis-full text-xs text-abai-muted">
               Mark a review <strong>irrelevant</strong> when it is blank,
-              off-topic, or low-signal. With “Hide irrelevant from analytics”
-              on, those rows stay in the table (dimmed) but are excluded from
-              averages, carousel, and exports. Live system reviews require{" "}
-              <strong>IT manager</strong> (or owner) approval.
+              off-topic, or low-signal (IT manager or owner only). With “Hide
+              irrelevant from analytics” on, those rows stay in the table
+              (dimmed) but are excluded from averages, carousel, and exports.
+              Live system reviews require <strong>IT manager</strong> or owner
+              approval (or management with the approve-reviews right).
             </p>
           ) : null}
         </div>
@@ -755,59 +796,123 @@ export function StaffFeedbackList({
         pendingMode ||
         role === "owner" ||
         role === "it_manager") && (
-        <div className="overflow-x-auto rounded-xl border border-abai-navy/10 bg-white">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-abai-navy text-white">
-              <tr>
-                <th className="px-3 py-3 font-medium">Visit</th>
-                {showGuestDetails ? (
-                  <>
-                    <th className="px-3 py-3 font-medium">Guest</th>
-                    <th className="px-3 py-3 font-medium">Phone</th>
-                    <th className="px-3 py-3 font-medium">Room</th>
-                  </>
-                ) : null}
-                <th className="px-3 py-3 font-medium">First visit</th>
-                <th className="px-3 py-3 font-medium">Services</th>
-                <th className="px-3 py-3 font-medium">Overall</th>
-                <th className="px-3 py-3 font-medium">Recommend</th>
-                <th className="px-3 py-3 font-medium">Value</th>
-                {effectivePermissions.show_comments ? (
-                  <th className="px-3 py-3 font-medium">Comment</th>
-                ) : null}
-                <th className="px-3 py-3 font-medium">Detail</th>
-                {showActions ? (
-                  <th className="px-3 py-3 font-medium">Actions</th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 && !loading ? (
-                <tr>
-                  <td
-                    colSpan={tableColCount}
-                    className="px-3 py-8 text-center text-abai-muted"
+        <section
+          aria-label={
+            pendingMode ? "Pending review gate" : "Feedback table"
+          }
+          className={`space-y-3 rounded-xl border p-4 ${
+            reviewGateEmphasis && pendingMode
+              ? "border-abai-gold/50 bg-abai-gold/[0.06]"
+              : "border-abai-navy/10 bg-white"
+          }`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-abai-navy">
+                {pendingMode
+                  ? "Review gate — pending before live system"
+                  : "Feedback table"}
+              </h2>
+              <p className="mt-0.5 text-sm text-abai-muted">
+                {pendingMode
+                  ? canApprove
+                    ? "Approve or reject submissions before they appear on approved dashboards and public reviews."
+                    : "Pending queue (view only). Approval is limited to IT manager, owner, or management with the grant."
+                  : countLabel}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {tableExpanded && rows.length > 0 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={expandAllRowDetails}
+                    className="min-h-10 rounded-lg border border-abai-navy/20 px-3 text-sm font-medium text-abai-navy hover:bg-abai-navy/5"
                   >
-                    {pendingMode
-                      ? "No pending submissions."
-                      : "No feedback matches these filters."}
-                  </td>
-                </tr>
+                    Expand all details
+                  </button>
+                  <button
+                    type="button"
+                    onClick={collapseAllRowDetails}
+                    className="min-h-10 rounded-lg border border-abai-navy/20 px-3 text-sm font-medium text-abai-navy hover:bg-abai-navy/5"
+                  >
+                    Collapse all details
+                  </button>
+                </>
               ) : null}
-              {rows.map((row) => (
-                <FeedbackRow
-                  key={row.id}
-                  row={row}
-                  showGuestDetails={showGuestDetails}
-                  showComments={effectivePermissions.show_comments}
-                  canApprove={canApprove}
-                  canMarkIrrelevant={canMarkIrrelevant}
-                  onAction={onModerate}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+              <button
+                type="button"
+                onClick={() => setTableExpanded((v) => !v)}
+                aria-expanded={tableExpanded}
+                className="min-h-10 rounded-lg bg-abai-navy px-4 text-sm font-medium text-white"
+              >
+                {tableExpanded ? "Collapse table" : "Expand table"}
+              </button>
+            </div>
+          </div>
+
+          {tableExpanded ? (
+            <div className="overflow-x-auto rounded-lg border border-abai-navy/10">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-abai-navy text-white">
+                  <tr>
+                    <th className="px-3 py-3 font-medium">Visit</th>
+                    {showGuestDetails ? (
+                      <>
+                        <th className="px-3 py-3 font-medium">Guest</th>
+                        <th className="px-3 py-3 font-medium">Phone</th>
+                        <th className="px-3 py-3 font-medium">Room</th>
+                      </>
+                    ) : null}
+                    <th className="px-3 py-3 font-medium">First visit</th>
+                    <th className="px-3 py-3 font-medium">Services</th>
+                    <th className="px-3 py-3 font-medium">Overall</th>
+                    <th className="px-3 py-3 font-medium">Recommend</th>
+                    <th className="px-3 py-3 font-medium">Value</th>
+                    {effectivePermissions.show_comments ? (
+                      <th className="px-3 py-3 font-medium">Comment</th>
+                    ) : null}
+                    <th className="px-3 py-3 font-medium">Detail</th>
+                    {showActions ? (
+                      <th className="px-3 py-3 font-medium">Actions</th>
+                    ) : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.length === 0 && !loading ? (
+                    <tr>
+                      <td
+                        colSpan={tableColCount}
+                        className="px-3 py-8 text-center text-abai-muted"
+                      >
+                        {pendingMode
+                          ? "No pending submissions."
+                          : "No feedback matches these filters."}
+                      </td>
+                    </tr>
+                  ) : null}
+                  {rows.map((row) => (
+                    <FeedbackRow
+                      key={row.id}
+                      row={row}
+                      showGuestDetails={showGuestDetails}
+                      showComments={effectivePermissions.show_comments}
+                      canApprove={canApprove}
+                      canMarkIrrelevant={canMarkIrrelevant}
+                      detailOpen={openDetailIds.has(row.id)}
+                      onToggleDetail={() => toggleRowDetail(row.id)}
+                      onAction={onModerate}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-abai-muted">
+              Table collapsed. Use Expand table to show rows again.
+            </p>
+          )}
+        </section>
       )}
     </div>
   );

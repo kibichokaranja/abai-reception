@@ -86,9 +86,10 @@ export function OwnerPermissionsEditor() {
           current[f.key],
         ]),
       );
-      // Reception never gets the question carousel.
+      // Reception never gets the question carousel or approve-pending right.
       if (activeRole === "reception") {
         permissions.show_question_carousel = false;
+        permissions.can_approve_feedback = false;
       }
       const res = await fetch("/api/staff/permissions", {
         method: "PUT",
@@ -149,7 +150,9 @@ export function OwnerPermissionsEditor() {
         </h2>
         <p className="mt-1 text-sm text-abai-muted">
           Owner-only. Choose what management and staff desk see on their
-          dashboards. Changes persist across refresh.
+          dashboards, including whether management may approve pending reviews.
+          Changes persist across refresh. Staff users are listed under Staff
+          users above — newly created accounts appear there immediately.
         </p>
       </div>
 
@@ -201,8 +204,13 @@ export function OwnerPermissionsEditor() {
           </ul>
           {activeRole === "reception" ? (
             <p className="text-xs text-abai-muted">
-              Question carousel is available on owner and management only — it
-              cannot be enabled for staff desk.
+              Question carousel and approve-pending are available on owner /
+              management (or IT) only — they cannot be enabled for staff desk.
+            </p>
+          ) : activeRole === "management" ? (
+            <p className="text-xs text-abai-muted">
+              “Approve pending reviews” lets management approve or reject into
+              the live system. IT manager and owner always can.
             </p>
           ) : null}
         </div>

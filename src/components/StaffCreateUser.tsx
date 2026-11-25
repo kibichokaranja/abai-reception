@@ -33,7 +33,11 @@ export function StaffCreateUser() {
     setListLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/staff/users", { credentials: "include" });
+      const res = await fetch("/api/staff/users", {
+        credentials: "include",
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
       const data = (await res.json()) as {
         users?: StaffUserRow[];
         error?: string;
@@ -76,6 +80,14 @@ export function StaffCreateUser() {
       };
       if (!res.ok) {
         throw new Error(data.error || "Could not create user");
+      }
+      // Show the new user immediately (before reload) so rights/visibility UIs
+      // never look empty after a successful create.
+      if (data.user) {
+        setUsers((prev) => {
+          if (prev.some((u) => u.id === data.user!.id)) return prev;
+          return [data.user!, ...prev];
+        });
       }
       setMessage(
         `Created ${data.user?.display_name ?? displayName} (${data.user?.username ?? username}, ${role}).`,
@@ -171,8 +183,9 @@ export function StaffCreateUser() {
           Staff users
         </h2>
         <p className="mt-1 text-sm text-abai-muted">
-          Owner-only. Create, edit, or delete users. Roles: owner, management,
-          staff desk.
+          Owner-only. Create, edit, or delete users. New users appear here
+          immediately and are available for role assignment. Roles: owner,
+          management, staff desk, IT manager, website API.
         </p>
       </div>
 

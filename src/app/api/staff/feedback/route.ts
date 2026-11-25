@@ -98,6 +98,7 @@ const OWNER_FULL: DashboardPermissions = {
   show_date_filters: true,
   show_low_score_filter: true,
   show_export: true,
+  can_approve_feedback: true,
 };
 
 const IT_MANAGER_PERMS: DashboardPermissions = {
@@ -111,6 +112,7 @@ const IT_MANAGER_PERMS: DashboardPermissions = {
   show_date_filters: true,
   show_low_score_filter: true,
   show_export: false,
+  can_approve_feedback: true,
 };
 
 function normalizeRows(data: unknown[]): GuestFeedbackRow[] {
@@ -151,6 +153,7 @@ async function permissionsForRole(
     show_date_filters: false,
     show_low_score_filter: false,
     show_export: false,
+    can_approve_feedback: false,
   };
 }
 
@@ -287,6 +290,10 @@ export async function GET(request: Request) {
       permissions.show_feedback_list ||
       pendingOnly;
 
+    const mayApprove = canApproveFeedback(session.role, {
+      canApproveFeedback: permissions.can_approve_feedback,
+    });
+
     return NextResponse.json(
       {
         feedback: showList ? feedback : [],
@@ -303,7 +310,7 @@ export async function GET(request: Request) {
             : undefined,
         role: session.role,
         pendingMode: pendingOnly,
-        canApprove: canApproveFeedback(session.role),
+        canApprove: mayApprove,
         canMarkIrrelevant: canMarkIrrelevant(session.role),
         canViewPending: canViewPending(session.role),
         permissions: isOwnerRole(session.role)
@@ -335,9 +342,8 @@ export async function GET(request: Request) {
 }
 
 /**
- * Approve / reject — owner + IT manager.
- * Mark irrelevant — owner + management + IT manager.
- * Owner always allowed when session is owner.
+ * Approve / reject — owner + IT manager always; management when granted.
+ * Mark irrelevant — owner + IT manager only.
  */
 export async function PATCH(request: Request) {
   const session = await getStaffSessionFromRequest(request);
@@ -387,17 +393,20 @@ export async function PATCH(request: Request) {
     );
   }
 
-  if (
-    (action === "approve" || action === "reject") &&
-    !canApproveFeedback(session.role)
-  ) {
-    return NextResponse.json(
-      {
-        error:
-          "Only the IT manager or owner can approve feedback into the live system.",
-      },
-      { status: 403, headers: noStoreHeaders() },
-    );
+  if (action === "approve" || action === "reject") {
+    const permissions = await permissionsForRole(session.role);
+    const mayApprove = canApproveFeedback(session.role, {
+      canApproveFeedback: permissions.can_approve_feedback,
+    });
+    if (!mayApprove) {
+      return NextResponse.json(
+        {
+          error:
+            "Only the IT manager, owner, or management with the approve-reviews right can approve feedback into the live system.",
+        },
+        { status: 403, headers: noStoreHeaders() },
+      );
+    }
   }
 
   if (
@@ -405,8 +414,11 @@ export async function PATCH(request: Request) {
     !canMarkIrrelevant(session.role)
   ) {
     return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401, headers: noStoreHeaders() },
+      {
+        error:
+          "Only the IT manager or owner can mark feedback as irrelevant.",
+      },
+      { status: 403, headers: noStoreHeaders() },
     );
   }
 
