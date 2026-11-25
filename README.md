@@ -7,7 +7,7 @@ Front-desk / QR guest feedback for **Abai Lodges & Spa** (“Exclusivity Redefin
 - **Management** at `/management` — title **Management**; can **see** pending; approves live reviews only when owner grants **Approve pending reviews**
 - **IT manager** at `/it` — review gate: approve/reject pending before live system (owner can also approve); mark irrelevant
 - **Staff desk** at `/reception` — **approved** feedback only; visibility controlled by owner
-- **Public reviews** at `/reviews` — copy: 10 most recent positive guest reviews; **Website API** still selects top 10 positive in last 3 months (expire after 1 year)
+- **Public reviews** at `/reviews` — copy: 10 most recent positive guest reviews; **Website API** and `/api/public/reviews` select the same (overall ≥ 4, last 3 months, expire after 1 year)
 - Supabase Postgres + RLS; Vercel-ready Next.js App Router + Tailwind
 
 ## Stack
@@ -115,7 +115,7 @@ GET /api/website/reviews
 Authorization: Bearer <WEBSITE_API_KEY>
 ```
 
-Returns up to **10** positive approved reviews with comments from the **last 3 months**. Reviews older than **1 year** are excluded. Public page: `/reviews`. JSON also at `/api/public/reviews` (no key; first name only).
+Returns up to **10** most recent **positive** approved reviews with comments from the **last 3 months** (overall experience/stay ≥ 4, or recommend fallback when no overall). Weak overall scores are never promoted by recommend alone. Reviews older than **1 year** are excluded. Public page: `/reviews`. JSON also at `/api/public/reviews` (no key; first name only). Positive filter is enforced in the Supabase query and again in selection.
 
 ## Permission matrix (defaults; owner can change)
 

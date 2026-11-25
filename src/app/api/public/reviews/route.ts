@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { selectPublicReviews } from "@/lib/public-reviews";
-import { getSupabaseAdminClient } from "@/lib/supabase-admin";
-import { SURVEY_V2_SELECT_COLUMNS, type GuestFeedbackRow } from "@/lib/types";
+import {
+  queryPublicReviewCandidates,
+  selectPublicReviews,
+} from "@/lib/public-reviews";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -24,18 +25,7 @@ function noStoreHeaders(
  */
 export async function GET() {
   try {
-    const supabase = getSupabaseAdminClient();
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-
-    const { data, error } = await supabase
-      .from("guest_feedback")
-      .select(SURVEY_V2_SELECT_COLUMNS)
-      .eq("approval_status", "approved")
-      .eq("is_irrelevant", false)
-      .gte("created_at", oneYearAgo.toISOString())
-      .order("created_at", { ascending: false })
-      .limit(500);
+    const { rows, error } = await queryPublicReviewCandidates();
 
     if (error) {
       console.error("public reviews select failed", error);
@@ -45,7 +35,6 @@ export async function GET() {
       );
     }
 
-    const rows = (data ?? []) as unknown as GuestFeedbackRow[];
     const reviews = selectPublicReviews(rows).map((r) => ({
       id: r.id,
       visit_date: r.visit_date,

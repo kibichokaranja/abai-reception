@@ -1,7 +1,8 @@
 import { BrandHeader } from "@/components/BrandHeader";
-import { selectPublicReviews } from "@/lib/public-reviews";
-import { getSupabaseAdminClient } from "@/lib/supabase-admin";
-import { SURVEY_V2_SELECT_COLUMNS, type GuestFeedbackRow } from "@/lib/types";
+import {
+  queryPublicReviewCandidates,
+  selectPublicReviews,
+} from "@/lib/public-reviews";
 import { formatVisitDate } from "@/lib/visit-date";
 
 export const dynamic = "force-dynamic";
@@ -9,22 +10,12 @@ export const revalidate = 0;
 
 async function loadReviews() {
   try {
-    const supabase = getSupabaseAdminClient();
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    const { data, error } = await supabase
-      .from("guest_feedback")
-      .select(SURVEY_V2_SELECT_COLUMNS)
-      .eq("approval_status", "approved")
-      .eq("is_irrelevant", false)
-      .gte("created_at", oneYearAgo.toISOString())
-      .order("created_at", { ascending: false })
-      .limit(500);
+    const { rows, error } = await queryPublicReviewCandidates();
     if (error) {
       console.error(error);
       return [];
     }
-    return selectPublicReviews((data ?? []) as unknown as GuestFeedbackRow[]);
+    return selectPublicReviews(rows);
   } catch (err) {
     console.error(err);
     return [];
