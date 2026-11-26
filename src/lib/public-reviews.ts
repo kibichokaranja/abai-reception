@@ -123,3 +123,22 @@ export async function queryPublicReviewCandidates(
     error: null,
   };
 }
+
+/**
+ * All-time count of every guest_feedback row ever submitted — not limited
+ * to positive, approved, commented, or recent. Used for public display
+ * alongside the positive-only list.
+ */
+export async function countAllGuestFeedbackSubmissions(
+  supabase: SupabaseClient = getSupabaseAdminClient(),
+): Promise<{ totalSubmitted: number; error: { message: string } | null }> {
+  const { count, error } = await supabase
+    .from("guest_feedback")
+    .select("id", { count: "exact", head: true });
+
+  if (error) {
+    return { totalSubmitted: 0, error: { message: error.message } };
+  }
+
+  return { totalSubmitted: count ?? 0, error: null };
+}

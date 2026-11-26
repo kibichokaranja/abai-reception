@@ -7,7 +7,7 @@ Front-desk / QR guest feedback for **Abai Lodges & Spa** (“Exclusivity Redefin
 - **Management** at `/management` — title **Management**; can **see** pending; approves live reviews only when owner grants **Approve pending reviews**
 - **IT manager** at `/it` — review gate: approve/reject pending before live system (owner can also approve); mark irrelevant
 - **Staff desk** at `/reception` — **approved** feedback only; visibility controlled by owner
-- **Public reviews** at `/reviews` — copy: The most recent guest reviews at Abai Lodges & Spa.; **Website API** and `/api/public/reviews` select the same (overall ≥ 4, last 3 months, expire after 1 year; up to 10)
+- **Public reviews** at `/reviews` — copy: The most recent guest reviews at Abai Lodges & Spa.; shows all-time **reviews submitted** count; **Website API** and `/api/public/reviews` select the same positive list (overall ≥ 4, last 3 months, expire after 1 year; up to 10) plus `totalSubmitted`
 - Supabase Postgres + RLS; Vercel-ready Next.js App Router + Tailwind
 
 ## Stack
@@ -115,7 +115,7 @@ GET /api/website/reviews
 Authorization: Bearer <WEBSITE_API_KEY>
 ```
 
-Returns up to **10** most recent **positive** approved reviews with comments from the **last 3 months** (overall experience/stay ≥ 4, or recommend fallback when no overall). Weak overall scores are never promoted by recommend alone. Reviews older than **1 year** are excluded. Public page: `/reviews`. JSON also at `/api/public/reviews` (no key; first name only). Positive filter is enforced in the Supabase query and again in selection.
+Returns up to **10** most recent **positive** approved reviews with comments from the **last 3 months** (overall experience/stay ≥ 4, or recommend fallback when no overall), plus **`totalSubmitted`**: all-time count of every `guest_feedback` row (not limited to positive or approved). Weak overall scores are never promoted by recommend alone. Reviews older than **1 year** are excluded from the list. Public page: `/reviews`. JSON also at `/api/public/reviews` (no key; first name only). Positive filter is enforced in the Supabase query and again in selection.
 
 ## Permission matrix (defaults; owner can change)
 
@@ -137,7 +137,7 @@ Returns up to **10** most recent **positive** approved reviews with comments fro
 2. `/staff` — owner: create user appears immediately under Staff users **and** Dashboard visibility; assign rights per user (not only Management/Staff desk slots).
 3. `/management` — pending visible; Approve only if grant on for that user; no Mark irrelevant.
 4. `/it` — opens on pending review gate; Approve → appears on approved dashboards + `/reviews`.
-5. `/reviews` — Abai navy/gold branding; copy says The most recent guest reviews at Abai Lodges & Spa. (no timeline wording; positive-only, approved, up to 10).
+5. `/reviews` — Abai navy/gold branding; copy says The most recent guest reviews at Abai Lodges & Spa.; shows “N reviews submitted” (all-time submissions); list remains positive-only, approved, up to 10.
 
 ## Scripts
 
