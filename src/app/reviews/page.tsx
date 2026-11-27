@@ -57,9 +57,6 @@ export default async function PublicReviewsPage() {
           <h1 className="mt-2 font-display text-2xl font-semibold text-abai-navy sm:text-3xl">
             Guest reviews
           </h1>
-          <p className="mt-2 max-w-xl text-abai-muted">
-            The most recent guest reviews at Abai Lodges &amp; Spa.
-          </p>
           <p className="mt-3 text-sm font-medium text-abai-navy">
             {formatSubmittedCount(totalSubmitted)}{" "}
             {totalSubmitted === 1 ? "review" : "reviews"} submitted

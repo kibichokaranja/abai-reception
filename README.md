@@ -83,7 +83,7 @@ Open [http://localhost:3000](http://localhost:3000) (guest), [/staff](http://loc
 ### Geofence notes (batch 5 — option B)
 
 - **No browser geolocation.** Submit checks the request IP against `ABAI_GEOFENCE_ALLOWLIST`.
-- Off-site error (exact): `Unable to submit from this location. Please use the form at Abai Lodges & Spa.`
+- Off-site error (exact): `We’re sorry we couldn’t process your feedback. If you’re currently at Abai Lodges & Spa, please contact our Help Desk on +254 11 1054090. We’ll be happy to assist!`
 - Soften copy/print via CSS + best-effort key intercepts (`user-select`, blank print overlay, Ctrl/Cmd+P/C discourage). A website **cannot** blank OS screenshot buttons or camera photos of the physical screen — do not claim otherwise.
 - Legacy `ABAI_GEOFENCE_LAT` / `LNG` / `RADIUS_M` are **ignored** — remove from Vercel after deploy.
 
@@ -133,7 +133,7 @@ Returns up to **10** most recent **positive** approved reviews with comments fro
 
 ## Smoke-test (after SQL + Redeploy)
 
-1. `/` — Guest Feedback; no location prompt; off-network IP → exact off-site error; print blanked; copy discourage; short on-site notice. OS screenshots/camera photos cannot be blocked.
+1. `/` — Guest Feedback; no location prompt; off-network IP → exact Help Desk off-site error; print blanked; copy discourage. Room number only when Accommodation is selected. OS screenshots/camera photos cannot be blocked.
 2. `/staff` — owner: create user appears immediately under Staff users **and** Dashboard visibility; assign rights per user (not only Management/Staff desk slots).
 3. `/management` — pending visible; Approve only if grant on for that user; no Mark irrelevant.
 4. `/it` — opens on pending review gate; Approve → appears on approved dashboards + `/reviews`.

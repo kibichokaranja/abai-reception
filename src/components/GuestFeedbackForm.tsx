@@ -159,6 +159,10 @@ export function GuestFeedbackForm() {
   const [thanks, setThanks] = useState(false);
 
   const services = form.purpose_of_visit_services;
+  const showRoomNumber = useMemo(
+    () => services.includes("accommodation"),
+    [services],
+  );
   const showStayQuestions = useMemo(
     () =>
       services.includes("accommodation") ||
@@ -192,6 +196,9 @@ export function GuestFeedbackForm() {
   useEffect(() => {
     setForm((prev) => {
       let next = prev;
+      if (!showRoomNumber && next.room_number !== "") {
+        next = { ...next, room_number: "" };
+      }
       if (!showStayQuestions) {
         next = {
           ...next,
@@ -207,7 +214,7 @@ export function GuestFeedbackForm() {
       }
       return next;
     });
-  }, [showStayQuestions, showSpaQuestion]);
+  }, [showRoomNumber, showStayQuestions, showSpaQuestion]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -229,7 +236,7 @@ export function GuestFeedbackForm() {
       setError("Phone must be 40 characters or fewer.");
       return;
     }
-    const room = form.room_number.trim();
+    const room = showRoomNumber ? form.room_number.trim() : "";
     if (room.length > ROOM_NUMBER_MAX_LENGTH) {
       setError(
         `Room number must be ${ROOM_NUMBER_MAX_LENGTH} characters or fewer.`,
@@ -327,13 +334,11 @@ export function GuestFeedbackForm() {
         <h1 className="font-display text-3xl font-semibold text-abai-navy sm:text-4xl">
           Guest Feedback
         </h1>
-        <p className="mx-auto mt-2 max-w-md text-sm text-abai-muted">
-          For on-site guests at Abai Lodges &amp; Spa. Please complete the form
-          here rather than copying or printing it.
-        </p>
       </div>
 
-      <div className="animate-fade-up grid gap-4 sm:grid-cols-3">
+      <div
+        className={`animate-fade-up grid gap-4 ${showRoomNumber ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
+      >
         <label className="block space-y-2">
           <span className="text-sm font-semibold uppercase tracking-wide text-abai-navy">
             Name
@@ -366,21 +371,23 @@ export function GuestFeedbackForm() {
             placeholder="07xx xxx xxx"
           />
         </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-semibold uppercase tracking-wide text-abai-navy">
-            Room number
-          </span>
-          <span className="block text-xs text-abai-muted">Optional</span>
-          <input
-            type="text"
-            name="room_number"
-            maxLength={ROOM_NUMBER_MAX_LENGTH}
-            value={form.room_number}
-            onChange={(e) => update("room_number", e.target.value)}
-            className="min-h-14 w-full rounded-lg border-2 border-abai-navy/15 bg-white px-4 text-lg text-abai-ink outline-none focus:border-abai-gold"
-            placeholder="e.g. 12"
-          />
-        </label>
+        {showRoomNumber ? (
+          <label className="block space-y-2">
+            <span className="text-sm font-semibold uppercase tracking-wide text-abai-navy">
+              Room number
+            </span>
+            <span className="block text-xs text-abai-muted">Optional</span>
+            <input
+              type="text"
+              name="room_number"
+              maxLength={ROOM_NUMBER_MAX_LENGTH}
+              value={form.room_number}
+              onChange={(e) => update("room_number", e.target.value)}
+              className="min-h-14 w-full rounded-lg border-2 border-abai-navy/15 bg-white px-4 text-lg text-abai-ink outline-none focus:border-abai-gold"
+              placeholder="e.g. 12"
+            />
+          </label>
+        ) : null}
       </div>
 
       <TapChoices

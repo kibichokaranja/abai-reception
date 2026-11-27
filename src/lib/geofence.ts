@@ -13,7 +13,7 @@
  */
 
 export const OFFSITE_SUBMIT_ERROR =
-  "Unable to submit from this location. Please use the form at Abai Lodges & Spa.";
+  "We’re sorry we couldn’t process your feedback. If you’re currently at Abai Lodges & Spa, please contact our Help Desk on +254 11 1054090. We’ll be happy to assist!";
 
 /** Comma/space/newline-separated IPv4 addresses or CIDRs, or `*` to allow all. */
 export function getGeofenceAllowlist(): string[] {
