@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  countAllGuestFeedbackSubmissions,
   queryPublicReviewCandidates,
   selectPublicReviews,
 } from "@/lib/public-reviews";
@@ -35,7 +36,8 @@ export async function OPTIONS() {
 
 /**
  * Hotel website API: 10 most recent positive approved reviews from the last
- * 3 months (eligible reviews expire after 1 year).
+ * 3 months (eligible reviews expire after 1 year), plus all-time
+ * `totalSubmitted` (every guest_feedback row, not limited to positive/approved).
  *
  * Auth: `Authorization: Bearer <WEBSITE_API_KEY>` or `X-Api-Key: <WEBSITE_API_KEY>`.
  * Create a `website_api` staff user in the owner UI for documentation; the key
@@ -61,26 +63,39 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { rows, error } = await queryPublicReviewCandidates();
+    const [candidates, totals] = await Promise.all([
+      queryPublicReviewCandidates(),
+      countAllGuestFeedbackSubmissions(),
+    ]);
 
-    if (error) {
-      console.error("website reviews select failed", error);
+    if (candidates.error) {
+      console.error("website reviews select failed", candidates.error);
       return NextResponse.json(
-        { error: `Could not load reviews: ${error.message}` },
+        { error: `Could not load reviews: ${candidates.error.message}` },
         { status: 500, headers: noStoreHeaders() },
       );
     }
 
-    const reviews = selectPublicReviews(rows);
+    if (totals.error) {
+      console.error("website reviews total count failed", totals.error);
+      return NextResponse.json(
+        { error: `Could not load review total: ${totals.error.message}` },
+        { status: 500, headers: noStoreHeaders() },
+      );
+    }
+
+    const reviews = selectPublicReviews(candidates.rows);
 
     return NextResponse.json(
       {
         reviews,
+        totalSubmitted: totals.totalSubmitted,
         meta: {
           limit: 10,
           windowMonths: 3,
           expireAfterYears: 1,
           count: reviews.length,
+          totalSubmitted: totals.totalSubmitted,
         },
       },
       { headers: noStoreHeaders() },

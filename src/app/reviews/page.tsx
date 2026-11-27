@@ -1,29 +1,50 @@
 import { BrandHeader } from "@/components/BrandHeader";
 import {
+  countAllGuestFeedbackSubmissions,
   queryPublicReviewCandidates,
   selectPublicReviews,
+  type PublicReview,
 } from "@/lib/public-reviews";
 import { formatVisitDate } from "@/lib/visit-date";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-async function loadReviews() {
+async function loadReviewsPage(): Promise<{
+  reviews: PublicReview[];
+  totalSubmitted: number;
+}> {
   try {
-    const { rows, error } = await queryPublicReviewCandidates();
-    if (error) {
-      console.error(error);
-      return [];
+    const [candidates, totals] = await Promise.all([
+      queryPublicReviewCandidates(),
+      countAllGuestFeedbackSubmissions(),
+    ]);
+
+    if (candidates.error) {
+      console.error(candidates.error);
     }
-    return selectPublicReviews(rows);
+    if (totals.error) {
+      console.error(totals.error);
+    }
+
+    return {
+      reviews: candidates.error
+        ? []
+        : selectPublicReviews(candidates.rows),
+      totalSubmitted: totals.error ? 0 : totals.totalSubmitted,
+    };
   } catch (err) {
     console.error(err);
-    return [];
+    return { reviews: [], totalSubmitted: 0 };
   }
 }
 
+function formatSubmittedCount(n: number): string {
+  return n.toLocaleString("en-US");
+}
+
 export default async function PublicReviewsPage() {
-  const reviews = await loadReviews();
+  const { reviews, totalSubmitted } = await loadReviewsPage();
 
   return (
     <div className="min-h-dvh pb-20">
@@ -38,6 +59,10 @@ export default async function PublicReviewsPage() {
           </h1>
           <p className="mt-2 max-w-xl text-abai-muted">
             The most recent guest reviews at Abai Lodges &amp; Spa.
+          </p>
+          <p className="mt-3 text-sm font-medium text-abai-navy">
+            {formatSubmittedCount(totalSubmitted)}{" "}
+            {totalSubmitted === 1 ? "review" : "reviews"} submitted
           </p>
         </header>
 

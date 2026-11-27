@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  countAllGuestFeedbackSubmissions,
   queryPublicReviewCandidates,
   selectPublicReviews,
 } from "@/lib/public-reviews";
@@ -22,20 +23,32 @@ function noStoreHeaders(
  * Public guest reviews for the hotel website page (/reviews).
  * Same selection rules as /api/website/reviews but no API key
  * (read-only positive snippets only — no phones/emails).
+ * Includes `totalSubmitted`: all-time guest_feedback row count.
  */
 export async function GET() {
   try {
-    const { rows, error } = await queryPublicReviewCandidates();
+    const [candidates, totals] = await Promise.all([
+      queryPublicReviewCandidates(),
+      countAllGuestFeedbackSubmissions(),
+    ]);
 
-    if (error) {
-      console.error("public reviews select failed", error);
+    if (candidates.error) {
+      console.error("public reviews select failed", candidates.error);
       return NextResponse.json(
-        { error: `Could not load reviews: ${error.message}` },
+        { error: `Could not load reviews: ${candidates.error.message}` },
         { status: 500, headers: noStoreHeaders() },
       );
     }
 
-    const reviews = selectPublicReviews(rows).map((r) => ({
+    if (totals.error) {
+      console.error("public reviews total count failed", totals.error);
+      return NextResponse.json(
+        { error: `Could not load review total: ${totals.error.message}` },
+        { status: 500, headers: noStoreHeaders() },
+      );
+    }
+
+    const reviews = selectPublicReviews(candidates.rows).map((r) => ({
       id: r.id,
       visit_date: r.visit_date,
       // First name only / anonymous if blank
@@ -48,7 +61,16 @@ export async function GET() {
     }));
 
     return NextResponse.json(
-      { reviews, meta: { limit: 10, windowMonths: 3, expireAfterYears: 1 } },
+      {
+        reviews,
+        totalSubmitted: totals.totalSubmitted,
+        meta: {
+          limit: 10,
+          windowMonths: 3,
+          expireAfterYears: 1,
+          totalSubmitted: totals.totalSubmitted,
+        },
+      },
       { headers: noStoreHeaders() },
     );
   } catch (err) {
